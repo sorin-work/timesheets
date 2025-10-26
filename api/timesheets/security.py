@@ -2,6 +2,9 @@ import base64
 import hashlib
 import hmac
 import secrets
+from datetime import UTC, datetime, timedelta
+
+import jwt
 
 _N, _R, _P = 2**14, 8, 1
 
@@ -33,3 +36,18 @@ def verify_password(password: str, stored: str) -> bool:
         dklen=len(expected),
     )
     return hmac.compare_digest(actual, expected)
+
+
+def create_access_token(user_id: int, secret: str, ttl_minutes: int) -> str:
+    now = datetime.now(UTC)
+    payload = {"sub": str(user_id), "iat": now, "exp": now + timedelta(minutes=ttl_minutes)}
+    return jwt.encode(payload, secret, algorithm="HS256")
+
+
+def decode_access_token(token: str, secret: str) -> int | None:
+    """Return the user id for a valid token, or None when it is invalid or expired."""
+    try:
+        payload = jwt.decode(token, secret, algorithms=["HS256"])
+        return int(payload["sub"])
+    except (jwt.PyJWTError, KeyError, ValueError):
+        return None

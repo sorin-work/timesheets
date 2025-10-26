@@ -41,3 +41,13 @@ def session(engine):
     s = db.session_factory()()
     yield s
     s.close()
+
+
+@pytest.fixture
+def client(engine):
+    from fastapi.testclient import TestClient
+
+    from timesheets.main import create_app
+
+    with TestClient(create_app()) as c:
+        yield c
