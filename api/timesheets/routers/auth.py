@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from timesheets.config import get_settings
-from timesheets.deps import DbSession
+from timesheets.deps import CurrentUser, DbSession
 from timesheets.models import User
 from timesheets.schemas.auth import LoginIn, SignupIn, TokenOut, UserOut
 from timesheets.security import create_access_token, hash_password, verify_password
@@ -32,3 +32,8 @@ def login(body: LoginIn, db: DbSession) -> TokenOut:
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     return _token_for(user)
+
+
+@router.get("/me", response_model=UserOut)
+def me(user: CurrentUser) -> User:
+    return user

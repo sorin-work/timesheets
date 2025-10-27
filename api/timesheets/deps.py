@@ -1,8 +1,37 @@
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from timesheets.config import get_settings
 from timesheets.db import get_db
+from timesheets.models import User
+from timesheets.security import decode_access_token
 
 DbSession = Annotated[Session, Depends(get_db)]
+
+_bearer = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    db: DbSession,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> User:
+    unauthorized = HTTPException(
+        status.HTTP_401_UNAUTHORIZED,
+        "Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if credentials is None:
+        raise unauthorized
+    user_id = decode_access_token(credentials.credentials, get_settings().secret_key)
+    if user_id is None:
+        raise unauthorized
+    user = db.get(User, user_id)
+    if user is None:
+        raise unauthorized
+    return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
