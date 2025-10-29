@@ -51,3 +51,23 @@ def client(engine):
 
     with TestClient(create_app()) as c:
         yield c
+
+
+def _signup(client, email: str, name: str = "Test User") -> dict[str, str]:
+    r = client.post(
+        "/api/auth/signup", json={"email": email, "password": "password123", "name": name}
+    )
+    assert r.status_code == 201, r.text
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+@pytest.fixture
+def auth(client):
+    """Authorization headers for a freshly signed-up user."""
+    return _signup(client, "freelancer@example.com", "Fran Freelancer")
+
+
+@pytest.fixture
+def other_auth(client):
+    """Headers for a second, unrelated account (for ownership checks)."""
+    return _signup(client, "someone-else@example.com", "Someone Else")
