@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Response, status
 from sqlalchemy import select
 
@@ -10,8 +12,10 @@ router = APIRouter(prefix="/api/clients", tags=["clients"])
 
 
 @router.get("", response_model=list[ClientOut])
-def list_clients(db: DbSession, user: CurrentUser) -> list[Client]:
+def list_clients(db: DbSession, user: CurrentUser, include_archived: bool = False) -> list[Client]:
     stmt = select(Client).where(Client.user_id == user.id).order_by(Client.name)
+    if not include_archived:
+        stmt = stmt.where(Client.archived_at.is_(None))
     return list(db.scalars(stmt))
 
 
@@ -47,3 +51,21 @@ def delete_client(client_id: int, db: DbSession, user: CurrentUser) -> Response:
     db.delete(client)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{client_id}/archive", response_model=ClientOut)
+def archive_client(client_id: int, db: DbSession, user: CurrentUser) -> Client:
+    """Hide a client from pickers while keeping its projects, entries and invoices."""
+    client = get_owned(db, Client, client_id, user, "Client")
+    if client.archived_at is None:
+        client.archived_at = datetime.now(UTC)
+        db.commit()
+    return client
+
+
+@router.post("/{client_id}/restore", response_model=ClientOut)
+def restore_client(client_id: int, db: DbSession, user: CurrentUser) -> Client:
+    client = get_owned(db, Client, client_id, user, "Client")
+    client.archived_at = None
+    db.commit()
+    return client
