@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from timesheets import __version__
 from timesheets.errors import install_error_handlers
-from timesheets.routers import auth, clients
+from timesheets.routers import auth, clients, projects
 
 
 def create_app() -> FastAPI:
@@ -15,6 +15,7 @@ def create_app() -> FastAPI:
     install_error_handlers(app)
     app.include_router(auth.router)
     app.include_router(clients.router)
+    app.include_router(projects.router)
     return app
 
 

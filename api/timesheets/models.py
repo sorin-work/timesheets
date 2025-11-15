@@ -57,3 +57,11 @@ class Project(TimestampMixin, Base):
         if self.hourly_rate is not None:
             return self.hourly_rate
         return self.client.hourly_rate
+
+    @property
+    def client_name(self) -> str:
+        return self.client.name
+
+    @property
+    def currency(self) -> str:
+        return self.client.currency
