@@ -1,9 +1,9 @@
 """Database models. Imported by Alembic so every table is registered on Base.metadata."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from timesheets.db import Base, TimestampMixin
@@ -65,3 +65,32 @@ class Project(TimestampMixin, Base):
     @property
     def currency(self) -> str:
         return self.client.currency
+
+
+class TimeEntry(TimestampMixin, Base):
+    __tablename__ = "time_entries"
+    __table_args__ = (Index("ix_time_entries_user_started", "user_id", "started_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # NULL while the timer is running.
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    description: Mapped[str] = mapped_column(String(500), default="")
+    billable: Mapped[bool] = mapped_column(Boolean, default=True)
+    source: Mapped[str] = mapped_column(String(10), default="manual")
+
+    user: Mapped[User] = relationship()
+    project: Mapped[Project] = relationship()
+
+    @property
+    def running(self) -> bool:
+        return self.ended_at is None
+
+    @property
+    def duration_seconds(self) -> int:
+        end = self.ended_at or datetime.now(UTC)
+        return int((end - self.started_at).total_seconds())

@@ -36,3 +36,22 @@ def test_project_rate_falls_back_to_the_client_rate(session):
     assert own_rate.effective_rate == Decimal("120.00")
     assert inherited.effective_rate == Decimal("80.00")
     assert inherited.billable is True
+
+
+def test_time_entry_duration(session):
+    from datetime import UTC, datetime
+
+    from timesheets.models import Client, Project, TimeEntry
+
+    user = User(email="ana@example.com", password_hash="x", name="Ana")
+    project = Project(user=user, client=Client(user=user, name="Acme"), name="Site")
+    entry = TimeEntry(
+        user=user,
+        project=project,
+        started_at=datetime(2025, 11, 3, 9, 0, tzinfo=UTC),
+        ended_at=datetime(2025, 11, 3, 10, 30, tzinfo=UTC),
+    )
+    session.add(entry)
+    session.commit()
+    assert entry.duration_seconds == 5400
+    assert not entry.running
