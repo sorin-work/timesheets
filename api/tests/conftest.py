@@ -71,3 +71,15 @@ def auth(client):
 def other_auth(client):
     """Headers for a second, unrelated account (for ownership checks)."""
     return _signup(client, "someone-else@example.com", "Someone Else")
+
+
+@pytest.fixture
+def project(client, auth):
+    """A billable project at 100.00/h for the `auth` user."""
+    acme = client.post(
+        "/api/clients", json={"name": "Acme", "hourly_rate": "100.00"}, headers=auth
+    ).json()
+    r = client.post(
+        "/api/projects", json={"client_id": acme["id"], "name": "Website"}, headers=auth
+    )
+    return r.json()

@@ -87,6 +87,22 @@ class TimeEntry(TimestampMixin, Base):
     project: Mapped[Project] = relationship()
 
     @property
+    def project_name(self) -> str:
+        return self.project.name
+
+    @property
+    def client_id(self) -> int:
+        return self.project.client_id
+
+    @property
+    def client_name(self) -> str:
+        return self.project.client.name
+
+    @property
+    def hourly_rate(self) -> Decimal | None:
+        return self.project.effective_rate
+
+    @property
     def running(self) -> bool:
         return self.ended_at is None
 
