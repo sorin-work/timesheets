@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Response, status
+from datetime import UTC, date, datetime, time, timedelta
+from typing import Annotated
+
+from fastapi import APIRouter, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
@@ -18,14 +21,40 @@ def _active_project(db, project_id: int, user: User) -> Project:
     return project
 
 
+def _day_start(day: date) -> datetime:
+    return datetime.combine(day, time.min, tzinfo=UTC)
+
+
 @router.get("", response_model=list[EntryOut])
-def list_entries(db: DbSession, user: CurrentUser) -> list[TimeEntry]:
+def list_entries(
+    db: DbSession,
+    user: CurrentUser,
+    client_id: int | None = None,
+    project_id: int | None = None,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    billable: bool | None = None,
+    q: str | None = None,
+) -> list[TimeEntry]:
     stmt = (
         select(TimeEntry)
+        .join(TimeEntry.project)
         .options(joinedload(TimeEntry.project).joinedload(Project.client))
         .where(TimeEntry.user_id == user.id)
         .order_by(TimeEntry.started_at.desc(), TimeEntry.id.desc())
     )
+    if client_id is not None:
+        stmt = stmt.where(Project.client_id == client_id)
+    if project_id is not None:
+        stmt = stmt.where(TimeEntry.project_id == project_id)
+    if date_from is not None:
+        stmt = stmt.where(TimeEntry.started_at >= _day_start(date_from))
+    if date_to is not None:
+        stmt = stmt.where(TimeEntry.started_at < _day_start(date_to + timedelta(days=1)))
+    if billable is not None:
+        stmt = stmt.where(TimeEntry.billable.is_(billable))
+    if q:
+        stmt = stmt.where(TimeEntry.description.ilike(f"%{q.strip()}%"))
     return list(db.scalars(stmt))
 
 
