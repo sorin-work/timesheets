@@ -2,14 +2,14 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
 from timesheets.deps import CurrentUser, DbSession
 from timesheets.errors import ValidationFailed
 from timesheets.models import Project, TimeEntry, User
 from timesheets.routers.common import get_owned
-from timesheets.schemas.entries import EntryIn, EntryOut, EntryUpdate
+from timesheets.schemas.entries import EntryIn, EntryOut, EntryPage, EntryUpdate
 
 router = APIRouter(prefix="/api/entries", tags=["entries"])
 
@@ -25,7 +25,7 @@ def _day_start(day: date) -> datetime:
     return datetime.combine(day, time.min, tzinfo=UTC)
 
 
-@router.get("", response_model=list[EntryOut])
+@router.get("", response_model=EntryPage)
 def list_entries(
     db: DbSession,
     user: CurrentUser,
@@ -35,7 +35,9 @@ def list_entries(
     date_to: Annotated[date | None, Query(alias="to")] = None,
     billable: bool | None = None,
     q: str | None = None,
-) -> list[TimeEntry]:
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> EntryPage:
     stmt = (
         select(TimeEntry)
         .join(TimeEntry.project)
@@ -55,7 +57,16 @@ def list_entries(
         stmt = stmt.where(TimeEntry.billable.is_(billable))
     if q:
         stmt = stmt.where(TimeEntry.description.ilike(f"%{q.strip()}%"))
-    return list(db.scalars(stmt))
+
+    total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
+    items = db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)).all()
+    return EntryPage(
+        items=[EntryOut.model_validate(e) for e in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=max(1, total // page_size),
+    )
 
 
 @router.post("", response_model=EntryOut, status_code=status.HTTP_201_CREATED)

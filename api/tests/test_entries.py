@@ -34,7 +34,10 @@ def test_filter_entries(client, auth, project):
     )
 
     def ids(query):
-        return [e["description"] for e in client.get(f"/api/entries?{query}", headers=auth).json()]
+        return [
+            e["description"]
+            for e in client.get(f"/api/entries?{query}", headers=auth).json()["items"]
+        ]
 
     assert ids("") == ["server patching", "design"]
     assert ids(f"project_id={other['id']}") == ["server patching"]
@@ -46,3 +49,25 @@ def test_filter_entries(client, auth, project):
         "server patching",
         "design",
     ]
+
+
+def test_entries_are_paginated(client, auth, project):
+    for day in range(1, 5):
+        client.post(
+            "/api/entries",
+            json=entry(
+                project["id"], start=f"2025-11-0{day}T09:00:00Z", end=f"2025-11-0{day}T10:00:00Z"
+            ),
+            headers=auth,
+        )
+    first = client.get("/api/entries?page_size=2", headers=auth).json()
+    assert first["total"] == 4
+    assert first["pages"] == 2
+    assert [e["started_at"][:10] for e in first["items"]] == ["2025-11-04", "2025-11-03"]
+    second = client.get("/api/entries?page_size=2&page=2", headers=auth).json()
+    assert [e["started_at"][:10] for e in second["items"]] == ["2025-11-02", "2025-11-01"]
+
+
+def test_empty_entries_list_has_one_page(client, auth):
+    body = client.get("/api/entries", headers=auth).json()
+    assert body == {"items": [], "total": 0, "page": 1, "page_size": 50, "pages": 1}
