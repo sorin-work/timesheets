@@ -71,3 +71,62 @@ def test_entries_are_paginated(client, auth, project):
 def test_empty_entries_list_has_one_page(client, auth):
     body = client.get("/api/entries", headers=auth).json()
     assert body == {"items": [], "total": 0, "page": 1, "page_size": 50, "pages": 1}
+
+
+def test_entry_validation(client, auth, project):
+    pid = project["id"]
+    bad = [
+        entry(pid, end="2025-11-17T09:00:00Z"),  # zero length
+        entry(pid, end="2025-11-17T08:00:00Z"),  # ends before it starts
+        entry(pid, end="2025-11-18T09:00:01Z"),  # longer than a day
+        entry(pid, start="2025-11-17T09:00:00", end="2025-11-17T10:00:00"),  # no timezone
+        entry(pid, description="x" * 501),
+    ]
+    for payload in bad:
+        r = client.post("/api/entries", json=payload, headers=auth)
+        assert r.status_code == 422, payload
+
+
+def test_entry_billable_defaults_to_project_setting(client, auth, project):
+    client.patch(f"/api/projects/{project['id']}", json={"billable": False}, headers=auth)
+    r = client.post("/api/entries", json=entry(project["id"]), headers=auth)
+    assert r.json()["billable"] is False
+    r = client.post("/api/entries", json=entry(project["id"], billable=True), headers=auth)
+    assert r.json()["billable"] is True
+
+
+def test_update_entry(client, auth, project):
+    eid = client.post("/api/entries", json=entry(project["id"]), headers=auth).json()["id"]
+    r = client.patch(
+        f"/api/entries/{eid}",
+        json={
+            "started_at": "2025-11-17T08:00:00Z",
+            "ended_at": "2025-11-17T08:45:00Z",
+            "description": "standup",
+        },
+        headers=auth,
+    )
+    assert r.status_code == 200
+    assert r.json()["duration_seconds"] == 2700
+    assert r.json()["description"] == "standup"
+
+
+def test_cannot_log_time_on_archived_project(client, auth, project):
+    client.post(f"/api/projects/{project['id']}/archive", headers=auth)
+    r = client.post("/api/entries", json=entry(project["id"]), headers=auth)
+    assert r.status_code == 422
+
+
+def test_entries_are_private(client, auth, other_auth, project):
+    eid = client.post("/api/entries", json=entry(project["id"]), headers=auth).json()["id"]
+    assert client.get(f"/api/entries/{eid}", headers=other_auth).status_code == 404
+    assert client.delete(f"/api/entries/{eid}", headers=other_auth).status_code == 404
+    assert client.get("/api/entries", headers=other_auth).json()["total"] == 0
+    r = client.post("/api/entries", json=entry(project["id"]), headers=other_auth)
+    assert r.status_code == 404
+
+
+def test_delete_entry(client, auth, project):
+    eid = client.post("/api/entries", json=entry(project["id"]), headers=auth).json()["id"]
+    assert client.delete(f"/api/entries/{eid}", headers=auth).status_code == 204
+    assert client.get(f"/api/entries/{eid}", headers=auth).status_code == 404
