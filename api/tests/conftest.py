@@ -1,6 +1,9 @@
 import os
+from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import text
 
 from timesheets import db
@@ -12,13 +15,25 @@ TEST_DATABASE_URL = os.environ.get(
 )
 
 
+API_DIR = Path(__file__).resolve().parent.parent
+
+
+def _reset_schema(engine) -> None:
+    with engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+
+
 @pytest.fixture(scope="session")
 def engine():
+    """Build the schema with the real migrations so they are exercised on every run."""
     engine = db.configure(TEST_DATABASE_URL)
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
+    _reset_schema(engine)
+    config = Config(str(API_DIR / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+    command.upgrade(config, "head")
     yield engine
-    Base.metadata.drop_all(engine)
+    _reset_schema(engine)
     engine.dispose()
 
 
