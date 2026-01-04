@@ -33,3 +33,44 @@ def test_empty_week(client, auth):
     sheet = client.get("/api/timesheet?week=2025-12-08", headers=auth).json()
     assert sheet["rows"] == []
     assert sheet["totals"] == [0] * 7
+
+
+def cell(client, auth, project_id, day, minutes):
+    return client.put(
+        "/api/timesheet/cell",
+        json={"project_id": project_id, "date": day, "minutes": minutes},
+        headers=auth,
+    )
+
+
+def website_row(sheet):
+    return next(r for r in sheet["rows"] if r["project_name"] == "Website")
+
+
+def test_set_cell_creates_and_resizes_a_grid_entry(client, auth, project):
+    r = cell(client, auth, project["id"], "2025-12-09", 90)
+    assert r.status_code == 200, r.text
+    assert website_row(r.json())["seconds"][1] == 5400
+
+    r = cell(client, auth, project["id"], "2025-12-09", 30)
+    assert website_row(r.json())["seconds"][1] == 1800
+    entries = client.get("/api/entries", headers=auth).json()["items"]
+    assert len(entries) == 1
+    assert entries[0]["source"] == "grid"
+
+
+def test_set_cell_keeps_tracked_entries(client, auth, project):
+    log(client, auth, project["id"], "2025-12-09T08:00:00Z", "2025-12-09T09:00:00Z")
+    r = cell(client, auth, project["id"], "2025-12-09", 150)
+    assert website_row(r.json())["seconds"][1] == 9000
+    sources = sorted(e["source"] for e in client.get("/api/entries", headers=auth).json()["items"])
+    assert sources == ["grid", "manual"]
+
+    r = cell(client, auth, project["id"], "2025-12-09", 30)
+    assert r.status_code == 422
+
+
+def test_clearing_a_cell_removes_the_grid_entry(client, auth, project):
+    cell(client, auth, project["id"], "2025-12-09", 60)
+    r = cell(client, auth, project["id"], "2025-12-09", 0)
+    assert r.json()["rows"] == []

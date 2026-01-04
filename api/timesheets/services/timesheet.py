@@ -62,3 +62,46 @@ def build_week(db: Session, user: User, day: date) -> Week:
         row.seconds[index] += entry.duration_seconds
     ordered = sorted(rows.values(), key=lambda r: (r.project.client.name, r.project.name))
     return Week(start=start, rows=ordered)
+
+
+class CellError(ValueError):
+    pass
+
+
+def set_cell(db: Session, user: User, project: Project, day: date, seconds: int) -> None:
+    """Make the project's total for `day` equal `seconds`.
+
+    Timer and manual entries are left alone; the difference is kept in a single
+    "grid" entry for the cell that is created, resized or removed as needed.
+    """
+    begin = datetime.combine(day, time.min, tzinfo=UTC)
+    stmt = select(TimeEntry).where(
+        TimeEntry.user_id == user.id,
+        TimeEntry.project_id == project.id,
+        TimeEntry.started_at >= begin,
+        TimeEntry.started_at < begin + timedelta(days=1),
+    )
+    entries = list(db.scalars(stmt))
+    grid = [e for e in entries if e.source == "grid"]
+    fixed = sum(e.duration_seconds for e in entries if e.source != "grid")
+    if seconds < fixed:
+        raise CellError(
+            f"This day already has {fixed // 60} min of tracked time; "
+            "edit those entries to go lower"
+        )
+    for entry in grid:
+        db.delete(entry)
+    remainder = seconds - fixed
+    if remainder > 0:
+        start = begin + timedelta(hours=9)
+        db.add(
+            TimeEntry(
+                user_id=user.id,
+                project_id=project.id,
+                started_at=start,
+                ended_at=start + timedelta(seconds=remainder),
+                billable=project.billable,
+                source="grid",
+            )
+        )
+    db.commit()
