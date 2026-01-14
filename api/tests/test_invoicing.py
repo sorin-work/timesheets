@@ -1,0 +1,41 @@
+from datetime import date
+
+from timesheets.models import Client, Invoice, User
+from timesheets.services.invoicing import next_number
+
+
+def make_user(session, email="ana@example.com", prefix="INV-"):
+    user = User(email=email, password_hash="x", name="Ana", invoice_prefix=prefix)
+    session.add(user)
+    session.flush()
+    return user
+
+
+def add_invoice(session, user, sequence):
+    client = Client(user=user, name="Acme")
+    session.add(
+        Invoice(
+            user_id=user.id,
+            client=client,
+            number=f"X{sequence}",
+            sequence=sequence,
+            issue_date=date(2026, 1, 1),
+            due_date=date(2026, 1, 15),
+            currency="EUR",
+        )
+    )
+    session.flush()
+
+
+def test_first_invoice_number(session):
+    user = make_user(session)
+    assert next_number(session, user) == (1, "INV-1")
+
+
+def test_numbers_continue_per_user(session):
+    ana = make_user(session)
+    bob = make_user(session, "bob@example.com", prefix="B/")
+    add_invoice(session, ana, 1)
+    add_invoice(session, ana, 2)
+    assert next_number(session, ana) == (3, "INV-3")
+    assert next_number(session, bob) == (1, "B/1")
