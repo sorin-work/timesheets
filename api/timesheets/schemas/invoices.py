@@ -1,0 +1,64 @@
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from timesheets.schemas.common import OptionalText
+
+
+class GenerateIn(BaseModel):
+    client_id: int
+    period_start: date
+    period_end: date
+    project_ids: list[int] | None = None
+    group_by: Literal["project", "entry"] = "project"
+    issue_date: date | None = None
+    due_days: Annotated[int, Field(ge=0, le=365)] | None = None
+    notes: OptionalText = None
+
+
+class InvoiceLineOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int | None
+    description: str
+    quantity: Decimal
+    unit_price: Decimal
+    amount: Decimal
+
+
+class InvoiceTaxOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    name: str
+    rate: Decimal
+    amount: Decimal
+
+
+class InvoiceSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    number: str
+    client_id: int
+    client_name: str
+    status: str
+    issue_date: date
+    due_date: date
+    currency: str
+    subtotal: Decimal
+    tax_total: Decimal
+    total: Decimal
+
+
+class InvoiceDetail(InvoiceSummary):
+    period_start: date | None
+    period_end: date | None
+    notes: str | None
+    sent_at: datetime | None
+    paid_at: datetime | None
+    lines: list[InvoiceLineOut]
+    taxes: list[InvoiceTaxOut]
+    entry_count: int

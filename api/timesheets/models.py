@@ -182,6 +182,14 @@ class Invoice(TimestampMixin, Base):
     )
     entries: Mapped[list[TimeEntry]] = relationship()
 
+    @property
+    def client_name(self) -> str:
+        return self.client.name
+
+    @property
+    def entry_count(self) -> int:
+        return len(self.entries)
+
 
 class InvoiceLine(Base):
     __tablename__ = "invoice_lines"
