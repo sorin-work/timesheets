@@ -55,3 +55,29 @@ def test_generate_invoice_groups_unbilled_time_by_project(client, auth, billed_c
     assert lines == [("Audit", "0.75", "112.50"), ("Website", "3.50", "350.00")]
     assert invoice["subtotal"] == "462.50"
     assert invoice["total"] == "462.50"
+
+
+def test_tax_lines_are_added_to_the_total(client, auth, billed_client):
+    site = billed_client["site"]["id"]
+    log(client, auth, site, "2026-01-05T09:00:00Z", "2026-01-05T12:00:00Z")
+    r = generate(
+        client,
+        auth,
+        billed_client["client"]["id"],
+        taxes=[{"name": "VAT", "rate": "19"}, {"name": "Withholding", "rate": "10"}],
+    )
+    invoice = r.json()
+    assert invoice["subtotal"] == "300.00"
+    assert [(t["name"], t["amount"]) for t in invoice["taxes"]] == [
+        ("VAT", "57.00"),
+        ("Withholding", "30.00"),
+    ]
+    assert invoice["tax_total"] == "87.00"
+    assert invoice["total"] == "387.00"
+
+
+def test_tax_rate_validation(client, auth, billed_client):
+    log(client, auth, billed_client["site"]["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    for tax in ({"name": "", "rate": "5"}, {"name": "VAT", "rate": "101"}):
+        r = generate(client, auth, billed_client["client"]["id"], taxes=[tax])
+        assert r.status_code == 422

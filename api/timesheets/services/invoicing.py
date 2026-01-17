@@ -9,7 +9,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from timesheets.errors import ValidationFailed
-from timesheets.models import Client, Invoice, InvoiceLine, Project, TimeEntry, User
+from timesheets.models import (
+    Client,
+    Invoice,
+    InvoiceLine,
+    InvoiceTax,
+    Project,
+    TimeEntry,
+    User,
+)
 from timesheets.services.money import hours_from_seconds, line_amount, to_money
 from timesheets.services.rounding import round_seconds
 
@@ -113,9 +121,16 @@ def _build_lines(entries: list[TimeEntry], rounding: str, group_by: str) -> list
     return lines
 
 
+def tax_amount(subtotal: Decimal, rate: Decimal) -> Decimal:
+    return round(subtotal * rate / 100, 2)
+
+
 def recalculate(invoice: Invoice) -> None:
+    """Refresh subtotal, every tax line and the total from the invoice lines."""
     invoice.subtotal = to_money(sum((line.amount for line in invoice.lines), Decimal(0)))
-    invoice.tax_total = Decimal("0.00")
+    for tax in invoice.taxes:
+        tax.amount = tax_amount(invoice.subtotal, tax.rate)
+    invoice.tax_total = to_money(sum((tax.amount for tax in invoice.taxes), Decimal(0)))
     invoice.total = invoice.subtotal + invoice.tax_total
 
 
@@ -145,6 +160,7 @@ def generate_invoice(db: Session, user: User, client: Client, options: GenerateO
         notes=options.notes,
     )
     invoice.lines = _build_lines(entries, user.rounding, options.group_by)
+    invoice.taxes = [InvoiceTax(name=name, rate=rate) for name, rate in options.taxes]
     recalculate(invoice)
     db.add(invoice)
     db.flush()

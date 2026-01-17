@@ -25,7 +25,10 @@ def list_invoices(db: DbSession, user: CurrentUser) -> list[Invoice]:
 @router.post("/generate", response_model=InvoiceDetail, status_code=status.HTTP_201_CREATED)
 def generate(body: GenerateIn, db: DbSession, user: CurrentUser) -> Invoice:
     client = get_owned(db, Client, body.client_id, user, "Client")
-    options = GenerateOptions(**body.model_dump())
+    options = GenerateOptions(
+        **body.model_dump(exclude={"taxes"}),
+        taxes=[(tax.name.strip(), tax.rate) for tax in body.taxes],
+    )
     return generate_invoice(db, user, client, options)
 
 

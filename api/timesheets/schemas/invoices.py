@@ -7,6 +7,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from timesheets.schemas.common import OptionalText
 
 
+class TaxIn(BaseModel):
+    name: Annotated[str, Field(min_length=1, max_length=60)]
+    rate: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)]
+
+
 class GenerateIn(BaseModel):
     client_id: int
     period_start: date
@@ -16,6 +21,7 @@ class GenerateIn(BaseModel):
     issue_date: date | None = None
     due_days: Annotated[int, Field(ge=0, le=365)] | None = None
     notes: OptionalText = None
+    taxes: Annotated[list[TaxIn], Field(max_length=5)] = []
 
 
 class InvoiceLineOut(BaseModel):
