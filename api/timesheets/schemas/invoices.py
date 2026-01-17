@@ -68,3 +68,7 @@ class InvoiceDetail(InvoiceSummary):
     lines: list[InvoiceLineOut]
     taxes: list[InvoiceTaxOut]
     entry_count: int
+
+
+class PaymentIn(BaseModel):
+    paid_on: date | None = None

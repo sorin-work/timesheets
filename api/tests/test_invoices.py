@@ -81,3 +81,30 @@ def test_tax_rate_validation(client, auth, billed_client):
     for tax in ({"name": "", "rate": "5"}, {"name": "VAT", "rate": "101"}):
         r = generate(client, auth, billed_client["client"]["id"], taxes=[tax])
         assert r.status_code == 422
+
+
+@pytest.fixture
+def draft(client, auth, billed_client):
+    log(client, auth, billed_client["site"]["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    return generate(client, auth, billed_client["client"]["id"]).json()
+
+
+def test_invoice_status_flow(client, auth, draft):
+    url = f"/api/invoices/{draft['id']}"
+    assert client.post(f"{url}/pay", headers=auth).status_code == 409
+
+    sent = client.post(f"{url}/send", headers=auth).json()
+    assert sent["status"] == "sent"
+    assert sent["sent_at"] is not None
+
+    paid = client.post(f"{url}/pay", json={"paid_on": "2026-02-10"}, headers=auth).json()
+    assert paid["status"] == "paid"
+    assert paid["paid_at"].startswith("2026-02-10")
+
+    assert client.post(f"{url}/send", headers=auth).status_code == 409
+    unpaid = client.post(f"{url}/unpay", headers=auth).json()
+    assert unpaid["status"] == "sent"
+    assert unpaid["paid_at"] is None
+
+    reverted = client.post(f"{url}/revert", headers=auth).json()
+    assert reverted["status"] == "draft"

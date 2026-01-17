@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from timesheets.errors import ValidationFailed
+from timesheets.errors import Conflict, ValidationFailed
 from timesheets.models import (
     Client,
     Invoice,
@@ -169,3 +169,28 @@ def generate_invoice(db: Session, user: User, client: Client, options: GenerateO
     db.commit()
     db.refresh(invoice)
     return invoice
+
+
+TRANSITIONS = {
+    "send": ({"draft"}, "sent"),
+    "pay": ({"sent"}, "paid"),
+    "unpay": ({"paid"}, "sent"),
+    "revert": ({"sent"}, "draft"),
+}
+
+
+def change_status(db: Session, invoice: Invoice, action: str, when: datetime | None = None) -> None:
+    allowed_from, target = TRANSITIONS[action]
+    if invoice.status not in allowed_from:
+        raise Conflict(f"Cannot {action} an invoice that is {invoice.status}")
+    when = when or datetime.now(UTC)
+    invoice.status = target
+    if action == "send":
+        invoice.sent_at = when
+    elif action == "pay":
+        invoice.paid_at = when
+    elif action == "unpay":
+        invoice.paid_at = None
+    elif action == "revert":
+        invoice.sent_at = None
+    db.commit()
