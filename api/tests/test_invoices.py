@@ -1,4 +1,14 @@
+from datetime import date
+
 import pytest
+
+from timesheets import clock
+
+
+@pytest.fixture(autouse=True)
+def pinned_today(monkeypatch):
+    """Invoices in these tests are issued on 2026-02-01; pretend it is a few days later."""
+    monkeypatch.setattr(clock, "today", lambda: date(2026, 2, 5))
 
 
 @pytest.fixture
@@ -108,3 +118,21 @@ def test_invoice_status_flow(client, auth, draft):
 
     reverted = client.post(f"{url}/revert", headers=auth).json()
     assert reverted["status"] == "draft"
+
+
+def test_sent_invoice_past_its_due_date_is_overdue(client, auth, billed_client):
+    log(client, auth, billed_client["site"]["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    old = generate(client, auth, billed_client["client"]["id"], issue_date="2020-01-01").json()
+    client.post(f"/api/invoices/{old['id']}/send", headers=auth)
+    assert client.get(f"/api/invoices/{old['id']}", headers=auth).json()["status"] == "overdue"
+
+    log(client, auth, billed_client["site"]["id"], "2026-01-06T09:00:00Z", "2026-01-06T10:00:00Z")
+    new = generate(client, auth, billed_client["client"]["id"], issue_date="2026-02-01").json()
+    client.post(f"/api/invoices/{new['id']}/send", headers=auth)
+    assert client.get(f"/api/invoices/{new['id']}", headers=auth).json()["status"] == "sent"
+
+    statuses = {i["number"]: i["status"] for i in client.get("/api/invoices", headers=auth).json()}
+    assert statuses == {old["number"]: "overdue", new["number"]: "sent"}
+
+    paid = client.post(f"/api/invoices/{old['id']}/pay", headers=auth).json()
+    assert paid["status"] == "paid"

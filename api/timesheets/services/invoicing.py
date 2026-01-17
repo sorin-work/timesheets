@@ -8,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
+from timesheets import clock
 from timesheets.errors import Conflict, ValidationFailed
 from timesheets.models import (
     Client,
@@ -143,7 +144,7 @@ def generate_invoice(db: Session, user: User, client: Client, options: GenerateO
     if not entries:
         raise ValidationFailed("There is no unbilled billable time for this client in the period")
 
-    issue_date = options.issue_date or date.today()
+    issue_date = options.issue_date or clock.today()
     due_days = user.payment_terms_days if options.due_days is None else options.due_days
     sequence, number = next_number(db, user)
     invoice = Invoice(

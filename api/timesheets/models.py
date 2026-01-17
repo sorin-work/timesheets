@@ -18,6 +18,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from timesheets import clock
 from timesheets.db import Base, TimestampMixin
 
 Money = Numeric(12, 2)
@@ -185,6 +186,15 @@ class Invoice(TimestampMixin, Base):
     @property
     def client_name(self) -> str:
         return self.client.name
+
+    @property
+    def is_overdue(self) -> bool:
+        return self.status == "sent" and self.due_date <= clock.today()
+
+    @property
+    def display_status(self) -> str:
+        """draft, sent, paid, or overdue for sent invoices past their due date."""
+        return "overdue" if self.is_overdue else self.status
 
     @property
     def entry_count(self) -> int:

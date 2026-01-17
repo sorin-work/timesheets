@@ -50,7 +50,7 @@ class InvoiceSummary(BaseModel):
     number: str
     client_id: int
     client_name: str
-    status: str
+    status: str = Field(validation_alias="display_status")
     issue_date: date
     due_date: date
     currency: str
