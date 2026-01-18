@@ -82,12 +82,13 @@ def set_cell(db: Session, user: User, project: Project, day: date, seconds: int)
         TimeEntry.started_at < begin + timedelta(days=1),
     )
     entries = list(db.scalars(stmt))
-    grid = [e for e in entries if e.source == "grid"]
-    fixed = sum(e.duration_seconds for e in entries if e.source != "grid")
+    # Invoiced grid entries are as fixed as tracked ones.
+    grid = [e for e in entries if e.source == "grid" and e.invoice_id is None]
+    fixed = sum(e.duration_seconds for e in entries if e not in grid)
     if seconds < fixed:
         raise CellError(
             f"This day already has {fixed // 60} min of tracked time; "
-            "edit those entries to go lower"
+            "edit or unbill those entries to go lower"
         )
     for entry in grid:
         db.delete(entry)

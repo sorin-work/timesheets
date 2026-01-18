@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
 from timesheets.deps import CurrentUser, DbSession
-from timesheets.errors import ValidationFailed
+from timesheets.errors import Conflict, ValidationFailed
 from timesheets.models import Project, TimeEntry, User
 from timesheets.routers.common import get_owned
 from timesheets.schemas.entries import EntryIn, EntryOut, EntryPage, EntryUpdate
@@ -19,6 +19,13 @@ def _active_project(db, project_id: int, user: User) -> Project:
     if project.archived_at is not None:
         raise ValidationFailed("Cannot log time on an archived project")
     return project
+
+
+def _unbilled(db, entry_id: int, user: User) -> TimeEntry:
+    entry = get_owned(db, TimeEntry, entry_id, user, "Entry")
+    if entry.invoice_id is not None:
+        raise Conflict("This entry is on an invoice; delete the draft invoice to change it")
+    return entry
 
 
 def _day_start(day: date) -> datetime:
@@ -89,7 +96,7 @@ def get_entry(entry_id: int, db: DbSession, user: CurrentUser) -> TimeEntry:
 
 @router.patch("/{entry_id}", response_model=EntryOut)
 def update_entry(entry_id: int, body: EntryUpdate, db: DbSession, user: CurrentUser) -> TimeEntry:
-    entry = get_owned(db, TimeEntry, entry_id, user, "Entry")
+    entry = _unbilled(db, entry_id, user)
     changes = body.model_dump(exclude_unset=True)
     if changes.get("project_id") is not None:
         _active_project(db, changes["project_id"], user)
@@ -104,7 +111,7 @@ def update_entry(entry_id: int, body: EntryUpdate, db: DbSession, user: CurrentU
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_entry(entry_id: int, db: DbSession, user: CurrentUser) -> Response:
-    entry = get_owned(db, TimeEntry, entry_id, user, "Entry")
+    entry = _unbilled(db, entry_id, user)
     db.delete(entry)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

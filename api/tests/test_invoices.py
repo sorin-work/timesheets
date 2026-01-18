@@ -173,3 +173,23 @@ def test_deleting_a_draft_releases_its_entries(client, auth, billed_client, draf
     again = generate(client, auth, billed_client["client"]["id"])
     assert again.status_code == 201
     assert again.json()["entry_count"] == 1
+
+
+def test_invoiced_entries_cannot_be_changed(client, auth, draft):
+    entry = client.get("/api/entries", headers=auth).json()["items"][0]
+    assert entry["invoice_id"] == draft["id"]
+    r = client.patch(f"/api/entries/{entry['id']}", json={"description": "x"}, headers=auth)
+    assert r.status_code == 409
+    assert client.delete(f"/api/entries/{entry['id']}", headers=auth).status_code == 409
+
+
+def test_already_invoiced_time_is_not_billed_twice(client, auth, billed_client, draft):
+    r = generate(client, auth, billed_client["client"]["id"])
+    assert r.status_code == 422
+
+
+def test_non_billable_and_running_entries_are_skipped(client, auth, billed_client):
+    site = billed_client["site"]["id"]
+    log(client, auth, site, "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z", billable=False)
+    client.post("/api/timer/start", json={"project_id": site}, headers=auth)
+    assert generate(client, auth, billed_client["client"]["id"]).status_code == 422

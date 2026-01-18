@@ -60,6 +60,7 @@ class EntryOut(BaseModel):
     description: str
     billable: bool
     source: str
+    invoice_id: int | None
     hourly_rate: Decimal | None
 
 
