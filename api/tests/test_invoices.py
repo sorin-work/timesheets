@@ -272,3 +272,27 @@ def test_invoice_currency_comes_from_the_client(client, auth):
     p = client.post("/api/projects", json={"client_id": gbp["id"], "name": "X"}, headers=auth)
     log(client, auth, p.json()["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
     assert generate(client, auth, gbp["id"]).json()["currency"] == "GBP"
+
+
+def test_invoice_pdf(client, auth, draft):
+    client.patch(
+        "/api/settings",
+        json={
+            "business_name": "Fran Dev",
+            "business_address": "1 Main St\nCluj",
+            "tax_id": "RO123",
+        },
+        headers=auth,
+    )
+    r = client.get(f"/api/invoices/{draft['id']}/pdf", headers=auth)
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/pdf"
+    assert 'filename="INV-1.pdf"' in r.headers["content-disposition"]
+    assert r.content.startswith(b"%PDF")
+
+
+def test_invoice_pdf_accepts_token_in_query(client, auth, draft):
+    token = auth["Authorization"].split()[1]
+    r = client.get(f"/api/invoices/{draft['id']}/pdf?token={token}")
+    assert r.status_code == 200
+    assert client.get(f"/api/invoices/{draft['id']}/pdf").status_code == 401

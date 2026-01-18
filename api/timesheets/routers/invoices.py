@@ -5,8 +5,8 @@ from fastapi import APIRouter, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from timesheets.deps import CurrentUser, DbSession
-from timesheets.errors import Conflict, ValidationFailed
+from timesheets.deps import CurrentUser, DbSession, DownloadUser
+from timesheets.errors import Conflict, NotFound, ValidationFailed
 from timesheets.models import Client, Invoice, InvoiceTax
 from timesheets.routers.common import get_owned
 from timesheets.schemas.invoices import (
@@ -22,6 +22,7 @@ from timesheets.services.invoicing import (
     generate_invoice,
     recalculate,
 )
+from timesheets.services.pdf import render_invoice_pdf
 
 router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 
@@ -127,3 +128,16 @@ def delete_invoice(invoice_id: int, db: DbSession, user: CurrentUser) -> Respons
     db.delete(invoice)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{invoice_id}/pdf", response_class=Response)
+def invoice_pdf(invoice_id: int, db: DbSession, user: DownloadUser) -> Response:
+    invoice = db.get(Invoice, invoice_id)
+    if invoice is None:
+        raise NotFound("Invoice not found")
+    filename = f"{invoice.number}.pdf".replace("/", "-")
+    return Response(
+        render_invoice_pdf(invoice, user),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
