@@ -136,3 +136,40 @@ def test_sent_invoice_past_its_due_date_is_overdue(client, auth, billed_client):
 
     paid = client.post(f"/api/invoices/{old['id']}/pay", headers=auth).json()
     assert paid["status"] == "paid"
+
+
+def test_edit_draft_invoice(client, auth, draft):
+    r = client.patch(
+        f"/api/invoices/{draft['id']}",
+        json={
+            "notes": "Thanks!",
+            "due_date": "2026-03-01",
+            "taxes": [{"name": "VAT", "rate": "20"}],
+        },
+        headers=auth,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["notes"] == "Thanks!"
+    assert body["due_date"] == "2026-03-01"
+    assert body["tax_total"] == "20.00"
+    assert body["total"] == "120.00"
+
+    r = client.patch(f"/api/invoices/{draft['id']}", json={"due_date": "2026-01-01"}, headers=auth)
+    assert r.status_code == 422
+
+
+def test_sent_invoices_are_locked(client, auth, draft):
+    client.post(f"/api/invoices/{draft['id']}/send", headers=auth)
+    assert (
+        client.patch(f"/api/invoices/{draft['id']}", json={"notes": "x"}, headers=auth).status_code
+        == 409
+    )
+    assert client.delete(f"/api/invoices/{draft['id']}", headers=auth).status_code == 409
+
+
+def test_deleting_a_draft_releases_its_entries(client, auth, billed_client, draft):
+    assert client.delete(f"/api/invoices/{draft['id']}", headers=auth).status_code == 204
+    again = generate(client, auth, billed_client["client"]["id"])
+    assert again.status_code == 201
+    assert again.json()["entry_count"] == 1

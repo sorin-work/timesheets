@@ -72,3 +72,10 @@ class InvoiceDetail(InvoiceSummary):
 
 class PaymentIn(BaseModel):
     paid_on: date | None = None
+
+
+class InvoiceUpdate(BaseModel):
+    issue_date: date | None = None
+    due_date: date | None = None
+    notes: OptionalText = None
+    taxes: Annotated[list[TaxIn], Field(max_length=5)] | None = None

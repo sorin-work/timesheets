@@ -1,14 +1,27 @@
 from datetime import UTC, datetime, time
+from decimal import Decimal
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from timesheets.deps import CurrentUser, DbSession
-from timesheets.models import Client, Invoice
+from timesheets.errors import Conflict, ValidationFailed
+from timesheets.models import Client, Invoice, InvoiceTax
 from timesheets.routers.common import get_owned
-from timesheets.schemas.invoices import GenerateIn, InvoiceDetail, InvoiceSummary, PaymentIn
-from timesheets.services.invoicing import GenerateOptions, change_status, generate_invoice
+from timesheets.schemas.invoices import (
+    GenerateIn,
+    InvoiceDetail,
+    InvoiceSummary,
+    InvoiceUpdate,
+    PaymentIn,
+)
+from timesheets.services.invoicing import (
+    GenerateOptions,
+    change_status,
+    generate_invoice,
+    recalculate,
+)
 
 router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 
@@ -72,3 +85,45 @@ def revert_invoice(invoice_id: int, db: DbSession, user: CurrentUser) -> Invoice
     invoice = get_owned(db, Invoice, invoice_id, user, "Invoice")
     change_status(db, invoice, "revert")
     return invoice
+
+
+def _draft(db, invoice_id: int, user) -> Invoice:
+    invoice = get_owned(db, Invoice, invoice_id, user, "Invoice")
+    if invoice.status != "draft":
+        raise Conflict("Only draft invoices can be changed")
+    return invoice
+
+
+@router.patch("/{invoice_id}", response_model=InvoiceDetail)
+def update_invoice(
+    invoice_id: int, body: InvoiceUpdate, db: DbSession, user: CurrentUser
+) -> Invoice:
+    invoice = _draft(db, invoice_id, user)
+    changes = body.model_dump(exclude_unset=True)
+    if "notes" in changes:
+        invoice.notes = changes["notes"]
+    if changes.get("issue_date"):
+        invoice.issue_date = changes["issue_date"]
+    if changes.get("due_date"):
+        invoice.due_date = changes["due_date"]
+    if invoice.due_date < invoice.issue_date:
+        raise ValidationFailed("The due date cannot be before the issue date")
+    if body.taxes is not None:
+        invoice.taxes = [
+            InvoiceTax(name=t.name.strip(), rate=t.rate, amount=Decimal("0.00")) for t in body.taxes
+        ]
+    recalculate(invoice)
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+
+@router.delete("/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_invoice(invoice_id: int, db: DbSession, user: CurrentUser) -> Response:
+    """Delete a draft; its time entries become unbilled again."""
+    invoice = _draft(db, invoice_id, user)
+    for entry in invoice.entries:
+        entry.invoice_id = None
+    db.delete(invoice)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

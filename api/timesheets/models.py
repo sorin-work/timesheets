@@ -227,6 +227,6 @@ class InvoiceTax(Base):
     )
     name: Mapped[str] = mapped_column(String(60))
     rate: Mapped[Decimal] = mapped_column(Numeric(5, 2))
-    amount: Mapped[Decimal] = mapped_column(Money)
+    amount: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
 
     invoice: Mapped[Invoice] = relationship(back_populates="taxes")
