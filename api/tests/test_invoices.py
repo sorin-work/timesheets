@@ -193,3 +193,82 @@ def test_non_billable_and_running_entries_are_skipped(client, auth, billed_clien
     log(client, auth, site, "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z", billable=False)
     client.post("/api/timer/start", json={"project_id": site}, headers=auth)
     assert generate(client, auth, billed_client["client"]["id"]).status_code == 422
+
+
+def test_group_by_entry_lists_each_entry(client, auth, billed_client):
+    site = billed_client["site"]["id"]
+    log(client, auth, site, "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z", description="Header")
+    log(client, auth, site, "2026-01-06T09:00:00Z", "2026-01-06T09:30:00Z")
+    invoice = generate(client, auth, billed_client["client"]["id"], group_by="entry").json()
+    assert [li["description"] for li in invoice["lines"]] == [
+        "2026-01-05 Header",
+        "2026-01-06 Website",
+    ]
+    assert invoice["subtotal"] == "150.00"
+
+
+def test_rounding_is_applied_per_entry(client, auth, billed_client):
+    client.patch("/api/settings", json={"rounding": "15"}, headers=auth)
+    site = billed_client["site"]["id"]
+    log(client, auth, site, "2026-01-05T09:00:00Z", "2026-01-05T09:20:00Z")  # 20 -> 30 min
+    log(client, auth, site, "2026-01-06T09:00:00Z", "2026-01-06T09:05:00Z")  # 5 -> 15 min
+    invoice = generate(client, auth, billed_client["client"]["id"]).json()
+    assert invoice["lines"][0]["quantity"] == "0.75"
+    assert invoice["subtotal"] == "75.00"
+
+
+def test_generate_for_selected_projects_only(client, auth, billed_client):
+    log(client, auth, billed_client["site"]["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    log(client, auth, billed_client["audit"]["id"], "2026-01-05T11:00:00Z", "2026-01-05T12:00:00Z")
+    invoice = generate(
+        client, auth, billed_client["client"]["id"], project_ids=[billed_client["audit"]["id"]]
+    ).json()
+    assert [li["description"] for li in invoice["lines"]] == ["Audit"]
+    # The website hour is still unbilled
+    rest = generate(client, auth, billed_client["client"]["id"]).json()
+    assert [li["description"] for li in rest["lines"]] == ["Website"]
+    assert rest["number"] == "INV-2"
+
+
+def test_only_entries_inside_the_period_are_billed(client, auth, billed_client):
+    site = billed_client["site"]["id"]
+    log(client, auth, site, "2025-12-31T09:00:00Z", "2025-12-31T10:00:00Z")
+    log(client, auth, site, "2026-01-31T09:00:00Z", "2026-01-31T10:00:00Z")
+    log(client, auth, site, "2026-02-01T09:00:00Z", "2026-02-01T10:00:00Z")
+    invoice = generate(client, auth, billed_client["client"]["id"]).json()
+    assert invoice["entry_count"] == 1
+
+
+def test_project_without_any_rate_cannot_be_invoiced(client, auth):
+    norate = client.post("/api/clients", json={"name": "Pro bono"}, headers=auth).json()
+    p = client.post("/api/projects", json={"client_id": norate["id"], "name": "X"}, headers=auth)
+    log(client, auth, p.json()["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    r = generate(client, auth, norate["id"])
+    assert r.status_code == 422
+    assert "hourly rate" in r.json()["error"]["message"]
+
+
+def test_generate_validation(client, auth, billed_client, other_auth):
+    cid = billed_client["client"]["id"]
+    r = generate(client, auth, cid, period_start="2026-02-01", period_end="2026-01-01")
+    assert r.status_code == 422
+    assert generate(client, auth, cid, group_by="client").status_code == 422
+    assert generate(client, other_auth, cid).status_code == 404
+
+
+def test_invoices_are_private(client, auth, other_auth, draft):
+    assert client.get(f"/api/invoices/{draft['id']}", headers=other_auth).status_code == 404
+    assert client.post(f"/api/invoices/{draft['id']}/send", headers=other_auth).status_code == 404
+    assert client.delete(f"/api/invoices/{draft['id']}", headers=other_auth).status_code == 404
+    assert client.get("/api/invoices", headers=other_auth).json() == []
+
+
+def test_invoice_currency_comes_from_the_client(client, auth):
+    gbp = client.post(
+        "/api/clients",
+        json={"name": "UK Ltd", "currency": "GBP", "hourly_rate": "70"},
+        headers=auth,
+    ).json()
+    p = client.post("/api/projects", json={"client_id": gbp["id"], "name": "X"}, headers=auth)
+    log(client, auth, p.json()["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    assert generate(client, auth, gbp["id"]).json()["currency"] == "GBP"
