@@ -296,3 +296,39 @@ def test_invoice_pdf_accepts_token_in_query(client, auth, draft):
     r = client.get(f"/api/invoices/{draft['id']}/pdf?token={token}")
     assert r.status_code == 200
     assert client.get(f"/api/invoices/{draft['id']}/pdf").status_code == 401
+
+
+def test_filter_and_sort_invoices(client, auth, billed_client):
+    cid = billed_client["client"]["id"]
+    site = billed_client["site"]["id"]
+    numbers = []
+    for day, hours in (("05", 1), ("06", 3), ("07", 2)):
+        log(client, auth, site, f"2026-01-{day}T09:00:00Z", f"2026-01-{day}T1{hours - 1}:00:00Z")
+        inv = generate(
+            client,
+            auth,
+            cid,
+            period_start=f"2026-01-{day}",
+            period_end=f"2026-01-{day}",
+            issue_date=f"2026-01-{int(day) + 5:02d}",
+        ).json()
+        numbers.append(inv["number"])
+    client.post("/api/invoices/1/send", headers=auth)
+    client.post("/api/invoices/2/send", headers=auth)
+    client.patch("/api/invoices/3", json={"due_date": "2026-03-01"}, headers=auth)
+
+    def listed(query=""):
+        return [i["number"] for i in client.get(f"/api/invoices?{query}", headers=auth).json()]
+
+    assert listed() == ["INV-3", "INV-2", "INV-1"]
+    assert listed("order=asc") == ["INV-1", "INV-2", "INV-3"]
+    assert listed("sort=total&order=desc") == ["INV-2", "INV-3", "INV-1"]
+    assert listed("sort=issue_date&order=asc") == ["INV-1", "INV-2", "INV-3"]
+    assert listed("status=draft") == ["INV-3"]
+    assert listed("status=overdue") == ["INV-2", "INV-1"]
+    assert listed("status=sent") == []
+    client.patch("/api/invoices/3", json={"issue_date": "2026-02-01"}, headers=auth)
+    client.post("/api/invoices/3/send", headers=auth)
+    assert listed("status=sent") == ["INV-3"]
+    assert listed(f"client_id={cid}&status=paid") == []
+    assert client.get("/api/invoices?sort=client", headers=auth).status_code == 422

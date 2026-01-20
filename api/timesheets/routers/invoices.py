@@ -1,10 +1,12 @@
 from datetime import UTC, datetime, time
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
+from timesheets import clock
 from timesheets.deps import CurrentUser, DbSession, DownloadUser
 from timesheets.errors import Conflict, NotFound, ValidationFailed
 from timesheets.models import Client, Invoice, InvoiceTax
@@ -27,14 +29,40 @@ from timesheets.services.pdf import render_invoice_pdf
 router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 
 
+SORT_COLUMNS = {
+    "number": Invoice.number,
+    "issue_date": Invoice.issue_date,
+    "due_date": Invoice.due_date,
+    "total": Invoice.total,
+}
+
+InvoiceStatus = Literal["draft", "sent", "paid", "overdue"]
+
+
 @router.get("", response_model=list[InvoiceSummary])
-def list_invoices(db: DbSession, user: CurrentUser) -> list[Invoice]:
+def list_invoices(
+    db: DbSession,
+    user: CurrentUser,
+    status: InvoiceStatus | None = None,
+    client_id: int | None = None,
+    sort: Literal["number", "issue_date", "due_date", "total"] = "number",
+    order: Literal["asc", "desc"] = "desc",
+) -> list[Invoice]:
+    column = SORT_COLUMNS[sort]
     stmt = (
         select(Invoice)
         .options(joinedload(Invoice.client))
         .where(Invoice.user_id == user.id)
-        .order_by(Invoice.issue_date.desc(), Invoice.sequence.desc())
+        .order_by(column.desc() if order == "desc" else column.asc(), Invoice.id.desc())
     )
+    if client_id is not None:
+        stmt = stmt.where(Invoice.client_id == client_id)
+    if status == "overdue":
+        stmt = stmt.where(Invoice.status == "sent", Invoice.due_date <= clock.today())
+    elif status == "sent":
+        stmt = stmt.where(Invoice.status == "sent", Invoice.due_date > clock.today())
+    elif status is not None:
+        stmt = stmt.where(Invoice.status == status)
     return list(db.scalars(stmt))
 
 
