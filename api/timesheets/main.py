@@ -8,6 +8,7 @@ from timesheets.routers import (
     entries,
     invoices,
     projects,
+    reports,
     settings,
     timer,
     timesheet,
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
     app.include_router(timer.router)
     app.include_router(timesheet.router)
     app.include_router(invoices.router)
+    app.include_router(reports.router)
     app.include_router(settings.router)
     return app
 

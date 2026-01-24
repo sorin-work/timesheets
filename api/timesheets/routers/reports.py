@@ -1,0 +1,53 @@
+from collections import defaultdict
+from datetime import date
+from decimal import Decimal
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, Query
+
+from timesheets.deps import CurrentUser, DbSession
+from timesheets.errors import ValidationFailed
+from timesheets.schemas.reports import Amount, TimeReport, TimeReportRow
+from timesheets.services.reports import time_report
+
+router = APIRouter(prefix="/api/reports", tags=["reports"])
+
+
+def _amounts(values: dict[str, Decimal]) -> list[Amount]:
+    return [Amount(currency=c, amount=a) for c, a in sorted(values.items())]
+
+
+@router.get("/time", response_model=TimeReport)
+def get_time_report(
+    db: DbSession,
+    user: CurrentUser,
+    date_from: Annotated[date, Query(alias="from")],
+    date_to: Annotated[date, Query(alias="to")],
+    group_by: Literal["client", "project", "month"] = "client",
+) -> TimeReport:
+    if date_to < date_from:
+        raise ValidationFailed("'to' must not be before 'from'")
+    if (date_to - date_from).days > 366 * 3:
+        raise ValidationFailed("Reports can cover at most three years")
+    rows = time_report(db, user, date_from, date_to, group_by)
+    totals: dict[str, Decimal] = defaultdict(Decimal)
+    for row in rows:
+        for currency, amount in row.amounts.items():
+            totals[currency] += amount
+    return TimeReport(
+        group_by=group_by,
+        rows=[
+            TimeReportRow(
+                key=row.key,
+                label=row.label,
+                tracked_seconds=row.tracked_seconds,
+                billable_seconds=row.billable_seconds,
+                unbilled_seconds=row.unbilled_seconds,
+                amounts=_amounts(row.amounts),
+            )
+            for row in rows
+        ],
+        tracked_seconds=sum(r.tracked_seconds for r in rows),
+        billable_seconds=sum(r.billable_seconds for r in rows),
+        amounts=_amounts(totals),
+    )
