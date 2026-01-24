@@ -84,3 +84,44 @@ def test_revenue_report(client, auth, two_clients):
     assert report["months"][0]["paid"] == []
     assert report["months"][1]["paid"] == [{"currency": "EUR", "amount": "200.00"}]
     assert report["paid"] == [{"currency": "EUR", "amount": "200.00"}]
+
+
+def test_time_report_by_project_counts_unbilled_time(client, auth, two_clients):
+    acme, bolt = two_clients
+    log(client, auth, acme["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    log(client, auth, bolt["id"], "2026-01-05T11:00:00Z", "2026-01-05T12:00:00Z")
+    client.post(
+        "/api/invoices/generate",
+        json={
+            "client_id": acme["client_id"],
+            "period_start": "2026-01-01",
+            "period_end": "2026-01-31",
+        },
+        headers=auth,
+    )
+    report = client.get(
+        "/api/reports/time?from=2026-01-01&to=2026-01-31&group_by=project", headers=auth
+    ).json()
+    rows = {r["label"]: r for r in report["rows"]}
+    assert rows["Acme / Acme site"]["unbilled_seconds"] == 0
+    assert rows["Bolt / Bolt site"]["unbilled_seconds"] == 3600
+
+
+def test_report_validation(client, auth):
+    assert (
+        client.get("/api/reports/time?from=2026-02-01&to=2026-01-01", headers=auth).status_code
+        == 422
+    )
+    assert (
+        client.get("/api/reports/time?from=2020-01-01&to=2026-01-01", headers=auth).status_code
+        == 422
+    )
+    assert client.get("/api/reports/time?from=2026-01-01", headers=auth).status_code == 422
+    assert client.get("/api/reports/revenue?year=1999", headers=auth).status_code == 422
+
+
+def test_reports_only_include_own_entries(client, auth, other_auth, two_clients):
+    acme, _ = two_clients
+    log(client, auth, acme["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    report = client.get("/api/reports/time?from=2026-01-01&to=2026-01-31", headers=other_auth)
+    assert report.json()["rows"] == []
