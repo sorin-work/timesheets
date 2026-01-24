@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from timesheets.models import Project, TimeEntry, User
+from timesheets.models import Invoice, Project, TimeEntry, User
 from timesheets.services.money import hours_from_seconds, line_amount
 from timesheets.services.rounding import round_seconds
 
@@ -65,3 +65,36 @@ def time_report(
             row.amounts[entry.project.currency] += line_amount(hours, rate)
     ordered = sorted(rows.values(), key=lambda r: r.key if group_by == "month" else r.label.lower())
     return ordered
+
+
+@dataclass
+class RevenueMonth:
+    month: str
+    invoiced: dict[str, Decimal] = field(default_factory=lambda: defaultdict(Decimal))
+    paid: dict[str, Decimal] = field(default_factory=lambda: defaultdict(Decimal))
+
+
+def revenue_report(db: Session, user: User, year: int) -> list[RevenueMonth]:
+    """Invoiced (by issue date) and paid (by payment date) totals for each month of a year.
+
+    Drafts are not revenue yet and are left out.
+    """
+    months = [RevenueMonth(f"{year}-{m:02d}") for m in range(1, 13)]
+    issued = select(Invoice).where(
+        Invoice.user_id == user.id,
+        Invoice.status != "draft",
+        Invoice.issue_date >= date(year, 1, 1),
+        Invoice.issue_date <= date(year, 12, 31),
+    )
+    for invoice in db.scalars(issued):
+        months[invoice.issue_date.month - 1].invoiced[invoice.currency] += invoice.total
+    paid = select(Invoice).where(
+        Invoice.user_id == user.id,
+        Invoice.status == "paid",
+        Invoice.paid_at >= datetime(year, 1, 1, tzinfo=UTC),
+        Invoice.paid_at < datetime(year + 1, 1, 1, tzinfo=UTC),
+    )
+    for invoice in db.scalars(paid):
+        assert invoice.paid_at is not None
+        months[invoice.paid_at.astimezone(UTC).month - 1].paid[invoice.currency] += invoice.total
+    return months

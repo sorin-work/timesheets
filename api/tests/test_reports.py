@@ -45,3 +45,42 @@ def test_time_report_by_client(client, auth, two_clients):
         {"currency": "EUR", "amount": "200.00"},
         {"currency": "USD", "amount": "120.00"},
     ]
+
+
+def test_time_report_by_month(client, auth, two_clients):
+    acme, _ = two_clients
+    log(client, auth, acme["id"], "2026-01-31T09:00:00Z", "2026-01-31T10:00:00Z")
+    log(client, auth, acme["id"], "2026-02-02T09:00:00Z", "2026-02-02T09:30:00Z")
+    report = client.get(
+        "/api/reports/time?from=2026-01-01&to=2026-02-28&group_by=month", headers=auth
+    ).json()
+    assert [(r["key"], r["tracked_seconds"]) for r in report["rows"]] == [
+        ("2026-01", 3600),
+        ("2026-02", 1800),
+    ]
+
+
+def test_revenue_report(client, auth, two_clients):
+    acme, _ = two_clients
+    log(client, auth, acme["id"], "2026-01-05T09:00:00Z", "2026-01-05T11:00:00Z")
+    inv = client.post(
+        "/api/invoices/generate",
+        json={
+            "client_id": acme["client_id"],
+            "period_start": "2026-01-01",
+            "period_end": "2026-01-31",
+            "issue_date": "2026-01-31",
+        },
+        headers=auth,
+    ).json()
+    report = client.get("/api/reports/revenue?year=2026", headers=auth).json()
+    assert report["invoiced"] == []  # drafts do not count
+
+    client.post(f"/api/invoices/{inv['id']}/send", headers=auth)
+    client.post(f"/api/invoices/{inv['id']}/pay", json={"paid_on": "2026-02-14"}, headers=auth)
+    report = client.get("/api/reports/revenue?year=2026", headers=auth).json()
+    assert len(report["months"]) == 12
+    assert report["months"][0]["invoiced"] == [{"currency": "EUR", "amount": "200.00"}]
+    assert report["months"][0]["paid"] == []
+    assert report["months"][1]["paid"] == [{"currency": "EUR", "amount": "200.00"}]
+    assert report["paid"] == [{"currency": "EUR", "amount": "200.00"}]

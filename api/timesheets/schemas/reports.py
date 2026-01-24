@@ -23,3 +23,16 @@ class TimeReport(BaseModel):
     tracked_seconds: int
     billable_seconds: int
     amounts: list[Amount]
+
+
+class RevenueMonthOut(BaseModel):
+    month: str
+    invoiced: list[Amount]
+    paid: list[Amount]
+
+
+class RevenueReport(BaseModel):
+    year: int
+    months: list[RevenueMonthOut]
+    invoiced: list[Amount]
+    paid: list[Amount]
