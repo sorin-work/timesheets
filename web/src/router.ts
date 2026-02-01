@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { setUnauthorizedHandler } from '@/api/client'
+import AppLayout from '@/components/AppLayout.vue'
 import { useAuth } from '@/stores/auth'
 
 export const router = createRouter({
@@ -8,7 +9,11 @@ export const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },
     { path: '/signup', name: 'signup', component: () => import('@/views/SignupView.vue') },
-    { path: '/', name: 'home', component: () => import('@/views/HomeView.vue') },
+    {
+      path: '/',
+      component: AppLayout,
+      children: [{ path: '', name: 'home', component: () => import('@/views/HomeView.vue') }],
+    },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
