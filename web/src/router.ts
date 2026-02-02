@@ -12,7 +12,10 @@ export const router = createRouter({
     {
       path: '/',
       component: AppLayout,
-      children: [{ path: '', name: 'home', component: () => import('@/views/HomeView.vue') }],
+      children: [
+        { path: '', name: 'home', component: () => import('@/views/HomeView.vue') },
+        { path: 'clients', name: 'clients', component: () => import('@/views/ClientsView.vue') },
+      ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],

@@ -8,7 +8,10 @@ const auth = useAuth()
 const router = useRouter()
 const menuOpen = ref(false)
 
-const nav = [{ to: '/', label: 'Dashboard' }]
+const nav = [
+  { to: '/', label: 'Dashboard' },
+  { to: '/clients', label: 'Clients' },
+]
 
 function logout() {
   auth.logout()
