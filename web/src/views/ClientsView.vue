@@ -13,12 +13,13 @@ const loading = ref(true)
 const error = ref('')
 const editing = ref<Client | null>(null)
 const creating = ref(false)
+const showArchived = ref(false)
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    clients.value = await api.get<Client[]>('/clients')
+    clients.value = await api.get<Client[]>('/clients', { include_archived: showArchived.value })
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -36,6 +37,17 @@ function onSaved() {
   load()
 }
 
+async function toggleArchived(client: Client) {
+  const action = client.archived_at ? 'restore' : 'archive'
+  if (action === 'archive' && !confirm(`Archive ${client.name}? Their history is kept.`)) return
+  try {
+    await api.post(`/clients/${client.id}/${action}`)
+    await load()
+  } catch (e) {
+    error.value = (e as Error).message
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -43,7 +55,13 @@ onMounted(load)
   <section>
     <div class="page-header">
       <h1>Clients</h1>
-      <button class="primary" type="button" @click="creating = true">New client</button>
+      <div class="header-actions">
+        <label class="inline">
+          <input v-model="showArchived" type="checkbox" @change="load" />
+          Show archived
+        </label>
+        <button class="primary" type="button" @click="creating = true">New client</button>
+      </div>
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
@@ -65,14 +83,20 @@ onMounted(load)
         </tr>
       </thead>
       <tbody>
-        <tr v-for="c in clients" :key="c.id">
-          <td>{{ c.name }}</td>
+        <tr v-for="c in clients" :key="c.id" :class="{ archived: c.archived_at }">
+          <td>
+            {{ c.name }}
+            <span v-if="c.archived_at" class="badge">archived</span>
+          </td>
           <td class="muted">{{ c.email ?? '—' }}</td>
           <td class="num">
             {{ c.hourly_rate ? `${formatMoney(c.hourly_rate, c.currency)}/h` : '—' }}
           </td>
           <td class="row-actions">
             <button type="button" @click="editing = c">Edit</button>
+            <button type="button" @click="toggleArchived(c)">
+              {{ c.archived_at ? 'Restore' : 'Archive' }}
+            </button>
           </td>
         </tr>
       </tbody>
@@ -87,3 +111,9 @@ onMounted(load)
     </ModalDialog>
   </section>
 </template>
+
+<style scoped>
+.archived td {
+  color: var(--muted);
+}
+</style>
