@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import TimerBar from '@/components/TimerBar.vue'
 import { useAuth } from '@/stores/auth'
 
 const auth = useAuth()
@@ -48,6 +49,7 @@ function logout() {
         <button type="button" class="menu-toggle" aria-label="Menu" @click="menuOpen = !menuOpen">
           ☰
         </button>
+        <TimerBar />
       </header>
       <main class="page">
         <RouterView />
@@ -123,6 +125,18 @@ nav {
 }
 
 .topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 2rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.menu-toggle {
   display: none;
 }
 
@@ -151,10 +165,11 @@ nav {
   }
 
   .topbar {
-    display: flex;
     padding: 0.5rem 1rem;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
+  }
+
+  .menu-toggle {
+    display: block;
   }
 
   .page {
