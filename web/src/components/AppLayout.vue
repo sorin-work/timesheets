@@ -11,6 +11,7 @@ const menuOpen = ref(false)
 const nav = [
   { to: '/', label: 'Dashboard' },
   { to: '/clients', label: 'Clients' },
+  { to: '/projects', label: 'Projects' },
 ]
 
 function logout() {

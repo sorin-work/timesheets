@@ -15,6 +15,11 @@ export const router = createRouter({
       children: [
         { path: '', name: 'home', component: () => import('@/views/HomeView.vue') },
         { path: 'clients', name: 'clients', component: () => import('@/views/ClientsView.vue') },
+        {
+          path: 'projects',
+          name: 'projects',
+          component: () => import('@/views/ProjectsView.vue'),
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
