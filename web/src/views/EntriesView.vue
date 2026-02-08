@@ -4,6 +4,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import type { Client, Entry, Page } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
 import { formatDate, formatDuration, formatTime } from '@/lib/format'
 import { useProjects } from '@/stores/projects'
 import { useTimer } from '@/stores/timer'
@@ -15,6 +16,8 @@ const clients = ref<Client[]>([])
 const page = ref<Page<Entry> | null>(null)
 const loading = ref(true)
 const error = ref('')
+const currentPage = ref(1)
+const PAGE_SIZE = 25
 
 const filters = reactive({
   client_id: '' as number | '',
@@ -50,7 +53,11 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    page.value = await api.get<Page<Entry>>('/entries', { ...filters })
+    page.value = await api.get<Page<Entry>>('/entries', {
+      ...filters,
+      page: currentPage.value,
+      page_size: PAGE_SIZE,
+    })
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -65,8 +72,17 @@ function resetFilters() {
 let debounce: ReturnType<typeof setTimeout> | undefined
 watch(filters, () => {
   clearTimeout(debounce)
-  debounce = setTimeout(load, 250)
+  debounce = setTimeout(() => {
+    currentPage.value = 1
+    load()
+  }, 250)
 })
+
+function goToPage(n: number) {
+  currentPage.value = n
+  load()
+  window.scrollTo({ top: 0 })
+}
 watch(() => timer.state.version, load)
 
 onMounted(async () => {
@@ -135,6 +151,13 @@ onMounted(async () => {
           </tbody>
         </table>
       </div>
+      <PaginationBar
+        v-if="page && page.total > PAGE_SIZE"
+        :page="page.page"
+        :pages="page.pages"
+        :total="page.total"
+        @change="goToPage"
+      />
     </div>
   </section>
 </template>
