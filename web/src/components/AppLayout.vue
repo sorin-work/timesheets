@@ -11,6 +11,7 @@ const menuOpen = ref(false)
 
 const nav = [
   { to: '/', label: 'Dashboard' },
+  { to: '/entries', label: 'Entries' },
   { to: '/clients', label: 'Clients' },
   { to: '/projects', label: 'Projects' },
 ]

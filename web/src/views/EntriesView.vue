@@ -1,0 +1,180 @@
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+
+import { api } from '@/api/client'
+import type { Client, Entry, Page } from '@/api/types'
+import EmptyState from '@/components/EmptyState.vue'
+import { formatDate, formatDuration, formatTime } from '@/lib/format'
+import { useProjects } from '@/stores/projects'
+import { useTimer } from '@/stores/timer'
+
+const { projects, load: loadProjects } = useProjects()
+const timer = useTimer()
+
+const clients = ref<Client[]>([])
+const page = ref<Page<Entry> | null>(null)
+const loading = ref(true)
+const error = ref('')
+
+const filters = reactive({
+  client_id: '' as number | '',
+  project_id: '' as number | '',
+  from: '',
+  to: '',
+  billable: '' as '' | 'true' | 'false',
+  q: '',
+})
+
+const projectOptions = computed(() =>
+  filters.client_id === ''
+    ? projects.value
+    : projects.value.filter((p) => p.client_id === filters.client_id),
+)
+
+const days = computed(() => {
+  const groups: { day: string; entries: Entry[]; total: number }[] = []
+  for (const entry of page.value?.items ?? []) {
+    const day = entry.started_at.slice(0, 10)
+    let group = groups[groups.length - 1]
+    if (!group || group.day !== day) {
+      group = { day, entries: [], total: 0 }
+      groups.push(group)
+    }
+    group.entries.push(entry)
+    group.total += entry.duration_seconds
+  }
+  return groups
+})
+
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    page.value = await api.get<Page<Entry>>('/entries', { ...filters })
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    loading.value = false
+  }
+}
+
+function resetFilters() {
+  Object.assign(filters, { client_id: '', project_id: '', from: '', to: '', billable: '', q: '' })
+}
+
+let debounce: ReturnType<typeof setTimeout> | undefined
+watch(filters, () => {
+  clearTimeout(debounce)
+  debounce = setTimeout(load, 250)
+})
+watch(() => timer.state.version, load)
+
+onMounted(async () => {
+  loadProjects()
+  clients.value = await api.get<Client[]>('/clients').catch(() => [])
+  await load()
+})
+</script>
+
+<template>
+  <section>
+    <div class="page-header">
+      <h1>Time entries</h1>
+    </div>
+
+    <div class="filters card">
+      <input v-model="filters.q" type="search" placeholder="Search descriptions" />
+      <select v-model="filters.client_id" aria-label="Client">
+        <option value="">All clients</option>
+        <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </select>
+      <select v-model="filters.project_id" aria-label="Project">
+        <option value="">All projects</option>
+        <option v-for="p in projectOptions" :key="p.id" :value="p.id">{{ p.name }}</option>
+      </select>
+      <input v-model="filters.from" type="date" aria-label="From" />
+      <input v-model="filters.to" type="date" aria-label="To" />
+      <select v-model="filters.billable" aria-label="Billable">
+        <option value="">Billable and not</option>
+        <option value="true">Billable</option>
+        <option value="false">Non-billable</option>
+      </select>
+      <button type="button" @click="resetFilters">Reset</button>
+    </div>
+
+    <p v-if="error" class="error">{{ error }}</p>
+    <p v-else-if="loading && !page" class="muted">Loading…</p>
+    <EmptyState
+      v-else-if="page && !page.items.length"
+      title="No time entries"
+      message="Start the timer above or add time manually."
+    />
+    <div v-else class="days">
+      <div v-for="group in days" :key="group.day" class="day">
+        <div class="day-header">
+          <strong>{{ formatDate(group.day) }}</strong>
+          <span class="muted">{{ formatDuration(group.total) }}</span>
+        </div>
+        <table class="table">
+          <tbody>
+            <tr v-for="e in group.entries" :key="e.id">
+              <td class="desc">
+                <div>{{ e.description || '(no description)' }}</div>
+                <small class="muted">{{ e.client_name }} · {{ e.project_name }}</small>
+              </td>
+              <td>
+                <span v-if="!e.billable" class="badge">non-billable</span>
+                <span v-if="e.invoice_id" class="badge billed">invoiced</span>
+              </td>
+              <td class="muted times">
+                {{ formatTime(e.started_at) }} –
+                {{ e.ended_at ? formatTime(e.ended_at) : 'now' }}
+              </td>
+              <td class="num">{{ e.running ? 'running' : formatDuration(e.duration_seconds) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem;
+}
+
+.filters input[type='search'] {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.days {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.day-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.375rem;
+}
+
+.desc {
+  width: 55%;
+}
+
+.times {
+  white-space: nowrap;
+}
+
+.badge.billed {
+  background: #dcfce7;
+  color: #166534;
+}
+</style>

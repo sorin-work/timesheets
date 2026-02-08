@@ -7,6 +7,9 @@ import EmptyState from '@/components/EmptyState.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import ProjectForm from '@/components/ProjectForm.vue'
 import { formatMoney } from '@/lib/format'
+import { useProjects } from '@/stores/projects'
+
+const { load: refreshPickers } = useProjects()
 
 const projects = ref<Project[]>([])
 const clients = ref<Client[]>([])
@@ -46,6 +49,7 @@ async function toggleArchived(project: Project) {
   try {
     await api.post(`/projects/${project.id}/${action}`)
     await load()
+    refreshPickers(true)
   } catch (e) {
     error.value = (e as Error).message
   }
@@ -59,6 +63,7 @@ function closeForm() {
 function onSaved() {
   closeForm()
   load()
+  refreshPickers(true)
 }
 
 onMounted(load)
