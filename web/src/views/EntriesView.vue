@@ -4,6 +4,8 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import type { Client, Entry, Page } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
+import EntryForm from '@/components/EntryForm.vue'
+import ModalDialog from '@/components/ModalDialog.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import { formatDate, formatDuration, formatTime } from '@/lib/format'
 import { useProjects } from '@/stores/projects'
@@ -17,6 +19,18 @@ const page = ref<Page<Entry> | null>(null)
 const loading = ref(true)
 const error = ref('')
 const currentPage = ref(1)
+const editing = ref<Entry | null>(null)
+const creating = ref(false)
+
+function closeForm() {
+  editing.value = null
+  creating.value = false
+}
+
+function onSaved() {
+  closeForm()
+  load()
+}
 const PAGE_SIZE = 25
 
 const filters = reactive({
@@ -96,6 +110,9 @@ onMounted(async () => {
   <section>
     <div class="page-header">
       <h1>Time entries</h1>
+      <button class="primary" type="button" :disabled="!projects.length" @click="creating = true">
+        Add time
+      </button>
     </div>
 
     <div class="filters card">
@@ -133,7 +150,12 @@ onMounted(async () => {
         </div>
         <table class="table">
           <tbody>
-            <tr v-for="e in group.entries" :key="e.id">
+            <tr
+              v-for="e in group.entries"
+              :key="e.id"
+              class="clickable"
+              @click="e.running ? null : (editing = e)"
+            >
               <td class="desc">
                 <div>{{ e.description || '(no description)' }}</div>
                 <small class="muted">{{ e.client_name }} · {{ e.project_name }}</small>
@@ -159,6 +181,14 @@ onMounted(async () => {
         @change="goToPage"
       />
     </div>
+
+    <ModalDialog
+      v-if="creating || editing"
+      :title="editing ? 'Edit entry' : 'Add time'"
+      @close="closeForm"
+    >
+      <EntryForm :entry="editing" @saved="onSaved" @deleted="onSaved" @cancel="closeForm" />
+    </ModalDialog>
   </section>
 </template>
 
@@ -190,6 +220,14 @@ onMounted(async () => {
 
 .desc {
   width: 55%;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover td {
+  background: #f8fafc;
 }
 
 .times {
