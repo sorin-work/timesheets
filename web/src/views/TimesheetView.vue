@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { api } from '@/api/client'
 import type { Timesheet } from '@/api/types'
+import GridCell from '@/components/GridCell.vue'
 import { formatDuration, isoDate } from '@/lib/format'
 import { addDays, dayLabel, mondayOf, weekLabel } from '@/lib/week'
 
@@ -30,6 +31,25 @@ async function load() {
   }
 }
 
+const saving = ref(false)
+
+async function setCell(projectId: number, date: string, minutes: number) {
+  saving.value = true
+  error.value = ''
+  try {
+    sheet.value = await api.put<Timesheet>('/timesheet/cell', {
+      project_id: projectId,
+      date,
+      minutes,
+    })
+  } catch (e) {
+    error.value = (e as Error).message
+    await load()
+  } finally {
+    saving.value = false
+  }
+}
+
 function go(offset: number) {
   const target = offset === 0 ? thisWeek : addDays(sheet.value?.week_start ?? week.value, offset)
   router.push({ query: target === thisWeek ? {} : { week: target } })
@@ -53,8 +73,8 @@ onMounted(load)
       </div>
     </div>
 
-    <p v-if="error" class="error">{{ error }}</p>
-    <div v-else-if="sheet" class="grid-wrap">
+    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <div v-if="sheet" class="grid-wrap">
       <table class="table grid">
         <thead>
           <tr>
@@ -76,8 +96,12 @@ onMounted(load)
               {{ row.project_name }}
               <div class="muted small">{{ row.client_name }}</div>
             </td>
-            <td v-for="(seconds, i) in row.seconds" :key="i" class="num">
-              {{ seconds ? formatDuration(seconds) : '' }}
+            <td v-for="(seconds, i) in row.seconds" :key="i" class="num cell-td">
+              <GridCell
+                :seconds="seconds"
+                :label="`${row.project_name}, ${sheet.days[i]}`"
+                @change="(minutes) => setCell(row.project_id, sheet!.days[i]!, minutes)"
+              />
             </td>
             <td class="num strong">{{ formatDuration(row.total) }}</td>
           </tr>
@@ -100,6 +124,10 @@ onMounted(load)
 <style scoped>
 .grid-wrap {
   overflow-x: auto;
+}
+
+.cell-td {
+  padding: 0.125rem 0.25rem !important;
 }
 
 .grid th.today {
