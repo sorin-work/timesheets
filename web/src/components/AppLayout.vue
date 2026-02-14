@@ -13,6 +13,7 @@ const nav = [
   { to: '/', label: 'Dashboard' },
   { to: '/timesheet', label: 'Timesheet' },
   { to: '/entries', label: 'Entries' },
+  { to: '/invoices', label: 'Invoices' },
   { to: '/clients', label: 'Clients' },
   { to: '/projects', label: 'Projects' },
 ]

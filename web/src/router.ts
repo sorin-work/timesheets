@@ -20,6 +20,11 @@ export const router = createRouter({
           component: () => import('@/views/TimesheetView.vue'),
         },
         { path: 'entries', name: 'entries', component: () => import('@/views/EntriesView.vue') },
+        {
+          path: 'invoices',
+          name: 'invoices',
+          component: () => import('@/views/InvoicesView.vue'),
+        },
         { path: 'clients', name: 'clients', component: () => import('@/views/ClientsView.vue') },
         {
           path: 'projects',

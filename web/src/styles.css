@@ -223,3 +223,19 @@ label.inline {
   color: #475569;
   vertical-align: middle;
 }
+
+a.button {
+  display: inline-block;
+  text-decoration: none;
+  padding: 0.5rem 0.875rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  color: inherit;
+  background: var(--surface);
+}
+
+a.button.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
