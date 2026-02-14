@@ -332,3 +332,28 @@ def test_filter_and_sort_invoices(client, auth, billed_client):
     assert listed("status=sent") == ["INV-3"]
     assert listed(f"client_id={cid}&status=paid") == []
     assert client.get("/api/invoices?sort=client", headers=auth).status_code == 422
+
+
+def test_unbilled_summary_previews_the_invoice(client, auth, billed_client):
+    client.patch("/api/settings", json={"rounding": "15"}, headers=auth)
+    site = billed_client["site"]["id"]
+    log(client, auth, site, "2026-01-05T09:00:00Z", "2026-01-05T09:50:00Z")
+    log(client, auth, site, "2026-01-06T09:00:00Z", "2026-01-06T09:10:00Z")
+    log(client, auth, billed_client["audit"]["id"], "2026-01-07T09:00:00Z", "2026-01-07T09:20:00Z")
+    r = client.get(
+        "/api/invoices/unbilled",
+        params={
+            "client_id": billed_client["client"]["id"],
+            "period_start": "2026-01-01",
+            "period_end": "2026-01-31",
+        },
+        headers=auth,
+    )
+    assert r.status_code == 200, r.text
+    summary = r.json()
+    assert summary["currency"] == "EUR"
+    audit, website = summary["projects"]
+    assert website["entries"] == 2
+    assert website["seconds"] == 3600
+    assert website["billable_seconds"] == 4500
+    assert audit["hourly_rate"] == "150.00"

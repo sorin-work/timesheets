@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Literal
 
@@ -17,14 +17,18 @@ from timesheets.schemas.invoices import (
     InvoiceSummary,
     InvoiceUpdate,
     PaymentIn,
+    UnbilledProject,
+    UnbilledSummary,
 )
 from timesheets.services.invoicing import (
     GenerateOptions,
     change_status,
     generate_invoice,
     recalculate,
+    unbilled_entries,
 )
 from timesheets.services.pdf import render_invoice_pdf
+from timesheets.services.rounding import round_seconds
 
 router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 
@@ -64,6 +68,40 @@ def list_invoices(
     elif status is not None:
         stmt = stmt.where(Invoice.status == status)
     return list(db.scalars(stmt))
+
+
+@router.get("/unbilled", response_model=UnbilledSummary)
+def unbilled_summary(
+    db: DbSession,
+    user: CurrentUser,
+    client_id: int,
+    period_start: date,
+    period_end: date,
+) -> UnbilledSummary:
+    """Preview of what an invoice for this client and period would contain."""
+    client = get_owned(db, Client, client_id, user, "Client")
+    entries = unbilled_entries(db, user, client.id, period_start, period_end)
+    projects: dict[int, UnbilledProject] = {}
+    for entry in entries:
+        rounded = round_seconds(entry.duration_seconds, user.rounding)
+        row = projects.get(entry.project_id)
+        if row is None:
+            row = projects[entry.project_id] = UnbilledProject(
+                project_id=entry.project_id,
+                project_name=entry.project.name,
+                hourly_rate=entry.project.effective_rate,
+                entries=0,
+                seconds=0,
+                billable_seconds=0,
+            )
+        row.entries += 1
+        row.seconds += entry.duration_seconds
+        row.billable_seconds += rounded
+    return UnbilledSummary(
+        client_id=client.id,
+        currency=client.currency,
+        projects=sorted(projects.values(), key=lambda p: p.project_name.lower()),
+    )
 
 
 @router.post("/generate", response_model=InvoiceDetail, status_code=status.HTTP_201_CREATED)

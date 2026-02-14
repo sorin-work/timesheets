@@ -79,3 +79,18 @@ class InvoiceUpdate(BaseModel):
     due_date: date | None = None
     notes: OptionalText = None
     taxes: Annotated[list[TaxIn], Field(max_length=5)] | None = None
+
+
+class UnbilledProject(BaseModel):
+    project_id: int
+    project_name: str
+    hourly_rate: Decimal | None
+    entries: int
+    seconds: int
+    billable_seconds: int
+
+
+class UnbilledSummary(BaseModel):
+    client_id: int
+    currency: str
+    projects: list[UnbilledProject]
