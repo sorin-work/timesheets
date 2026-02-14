@@ -3,10 +3,13 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { api } from '@/api/client'
-import type { Timesheet } from '@/api/types'
+import type { Timesheet, TimesheetRow } from '@/api/types'
 import GridCell from '@/components/GridCell.vue'
 import { formatDuration, isoDate } from '@/lib/format'
 import { addDays, dayLabel, mondayOf, weekLabel } from '@/lib/week'
+import { useProjects } from '@/stores/projects'
+
+const { projects, load: loadProjects } = useProjects()
 
 const route = useRoute()
 const router = useRouter()
@@ -32,6 +35,36 @@ async function load() {
 }
 
 const saving = ref(false)
+const extra = ref<number[]>([])
+const adding = ref<number | ''>('')
+
+const rows = computed<TimesheetRow[]>(() => {
+  const existing = sheet.value?.rows ?? []
+  const shown = new Set(existing.map((r) => r.project_id))
+  const added = extra.value
+    .filter((id) => !shown.has(id))
+    .map((id) => projects.value.find((p) => p.id === id))
+    .filter((p) => p !== undefined)
+    .map((p) => ({
+      project_id: p.id,
+      project_name: p.name,
+      client_name: p.client_name,
+      color: p.color,
+      seconds: [0, 0, 0, 0, 0, 0, 0],
+      total: 0,
+    }))
+  return [...existing, ...added]
+})
+
+const addable = computed(() => {
+  const shown = new Set(rows.value.map((r) => r.project_id))
+  return projects.value.filter((p) => !shown.has(p.id))
+})
+
+function addRow() {
+  if (adding.value !== '') extra.value.push(adding.value)
+  adding.value = ''
+}
 
 async function setCell(projectId: number, date: string, minutes: number) {
   saving.value = true
@@ -55,8 +88,14 @@ function go(offset: number) {
   router.push({ query: target === thisWeek ? {} : { week: target } })
 }
 
-watch(week, load)
-onMounted(load)
+watch(week, () => {
+  extra.value = []
+  load()
+})
+onMounted(() => {
+  loadProjects()
+  load()
+})
 </script>
 
 <template>
@@ -87,10 +126,12 @@ onMounted(load)
           </tr>
         </thead>
         <tbody>
-          <tr v-if="!sheet.rows.length">
-            <td :colspan="9" class="muted empty">No time logged this week.</td>
+          <tr v-if="!rows.length">
+            <td :colspan="9" class="muted empty">
+              No time logged this week. Add a project below to fill in hours.
+            </td>
           </tr>
-          <tr v-for="row in sheet.rows" :key="row.project_id">
+          <tr v-for="row in rows" :key="row.project_id">
             <td>
               <span class="dot" :style="{ background: row.color }" />
               {{ row.project_name }}
@@ -104,6 +145,18 @@ onMounted(load)
               />
             </td>
             <td class="num strong">{{ formatDuration(row.total) }}</td>
+          </tr>
+        </tbody>
+        <tbody>
+          <tr class="add-row">
+            <td colspan="9">
+              <select v-model="adding" aria-label="Add project" @change="addRow">
+                <option value="">+ Add project row…</option>
+                <option v-for="p in addable" :key="p.id" :value="p.id">
+                  {{ p.client_name }} · {{ p.name }}
+                </option>
+              </select>
+            </td>
           </tr>
         </tbody>
         <tfoot>
@@ -132,6 +185,10 @@ onMounted(load)
 
 .grid th.today {
   color: var(--primary);
+}
+
+.add-row select {
+  border-style: dashed;
 }
 
 .grid tfoot td {
