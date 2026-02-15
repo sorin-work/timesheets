@@ -165,3 +165,18 @@ export interface RevenueReport {
   invoiced: Amount[]
   paid: Amount[]
 }
+
+export interface UnbilledProject {
+  project_id: number
+  project_name: string
+  hourly_rate: Money | null
+  entries: number
+  seconds: number
+  billable_seconds: number
+}
+
+export interface UnbilledSummary {
+  client_id: number
+  currency: string
+  projects: UnbilledProject[]
+}
