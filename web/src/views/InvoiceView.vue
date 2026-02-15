@@ -1,19 +1,51 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
-import { api } from '@/api/client'
+import { api, getToken } from '@/api/client'
 import type { Client, Invoice, Settings } from '@/api/types'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { formatDate, formatMoney } from '@/lib/format'
 
 const route = useRoute()
+const router = useRouter()
 const id = Number(route.params.id)
 
 const invoice = ref<Invoice | null>(null)
 const client = ref<Client | null>(null)
 const settings = ref<Settings | null>(null)
 const error = ref('')
+const busy = ref(false)
+const paidOn = ref(new Date().toISOString().slice(0, 10))
+
+const pdfUrl = computed(
+  () => `/api/invoices/${id}/pdf?token=${encodeURIComponent(getToken() ?? '')}`,
+)
+
+async function act(action: 'send' | 'pay' | 'unpay' | 'revert') {
+  busy.value = true
+  error.value = ''
+  try {
+    const body = action === 'pay' ? { paid_on: paidOn.value } : undefined
+    invoice.value = await api.post<Invoice>(`/invoices/${id}/${action}`, body)
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    busy.value = false
+  }
+}
+
+async function remove() {
+  if (!confirm('Delete this draft? Its time entries become unbilled again.')) return
+  busy.value = true
+  try {
+    await api.delete(`/invoices/${id}`)
+    await router.push('/invoices')
+  } catch (e) {
+    error.value = (e as Error).message
+    busy.value = false
+  }
+}
 
 const notesHtml = computed(() => (invoice.value?.notes ?? '').replace(/\n/g, '<br>'))
 
@@ -36,14 +68,40 @@ onMounted(async () => {
 
 <template>
   <section>
-    <p v-if="error" class="error">{{ error }}</p>
-    <template v-else-if="invoice">
+    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <template v-if="invoice">
       <div class="page-header">
         <h1>
           Invoice {{ invoice.number }}
           <StatusBadge :status="invoice.status" />
         </h1>
         <RouterLink to="/invoices">All invoices</RouterLink>
+      </div>
+
+      <div class="toolbar">
+        <a class="button" :href="pdfUrl" target="_blank" rel="noopener">Download PDF</a>
+        <template v-if="invoice.status === 'draft'">
+          <button class="primary" type="button" :disabled="busy" @click="act('send')">
+            Mark as sent
+          </button>
+          <button class="danger" type="button" :disabled="busy" @click="remove">
+            Delete draft
+          </button>
+        </template>
+        <template v-else-if="invoice.status === 'sent' || invoice.status === 'overdue'">
+          <label class="inline">
+            Paid on
+            <input v-model="paidOn" type="date" />
+          </label>
+          <button class="primary" type="button" :disabled="busy" @click="act('pay')">
+            Mark as paid
+          </button>
+          <button type="button" :disabled="busy" @click="act('revert')">Back to draft</button>
+        </template>
+        <template v-else-if="invoice.status === 'paid'">
+          <span class="muted">Paid on {{ formatDate(invoice.paid_at!) }}</span>
+          <button type="button" :disabled="busy" @click="act('unpay')">Mark as unpaid</button>
+        </template>
       </div>
 
       <article class="paper card">
@@ -118,6 +176,14 @@ h1 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .paper {
