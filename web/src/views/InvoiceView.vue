@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { api, getToken } from '@/api/client'
 import type { Client, Invoice, Settings } from '@/api/types'
+import InvoiceEditForm from '@/components/InvoiceEditForm.vue'
+import ModalDialog from '@/components/ModalDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { formatDate, formatMoney } from '@/lib/format'
 
@@ -16,6 +18,12 @@ const client = ref<Client | null>(null)
 const settings = ref<Settings | null>(null)
 const error = ref('')
 const busy = ref(false)
+const editing = ref(false)
+
+function onSaved(updated: Invoice) {
+  invoice.value = updated
+  editing.value = false
+}
 const paidOn = ref(new Date().toISOString().slice(0, 10))
 
 const pdfUrl = computed(
@@ -84,6 +92,7 @@ onMounted(async () => {
           <button class="primary" type="button" :disabled="busy" @click="act('send')">
             Mark as sent
           </button>
+          <button type="button" :disabled="busy" @click="editing = true">Edit</button>
           <button class="danger" type="button" :disabled="busy" @click="remove">
             Delete draft
           </button>
@@ -166,6 +175,10 @@ onMounted(async () => {
         <!-- eslint-disable-next-line vue/no-v-html -->
         <div v-if="invoice.notes" class="notes" v-html="notesHtml" />
       </article>
+
+      <ModalDialog v-if="editing" title="Edit draft" @close="editing = false">
+        <InvoiceEditForm :invoice="invoice" @saved="onSaved" @cancel="editing = false" />
+      </ModalDialog>
     </template>
     <p v-else class="muted">Loading…</p>
   </section>
