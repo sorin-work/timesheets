@@ -16,6 +16,7 @@ const nav = [
   { to: '/invoices', label: 'Invoices' },
   { to: '/clients', label: 'Clients' },
   { to: '/projects', label: 'Projects' },
+  { to: '/settings', label: 'Settings' },
 ]
 
 function logout() {
