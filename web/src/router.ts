@@ -35,6 +35,7 @@ export const router = createRouter({
           name: 'invoice',
           component: () => import('@/views/InvoiceView.vue'),
         },
+        { path: 'reports', name: 'reports', component: () => import('@/views/ReportsView.vue') },
         {
           path: 'settings',
           name: 'settings',
