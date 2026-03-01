@@ -2,8 +2,9 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 
 import { api } from '@/api/client'
-import type { Amount, TimeReport } from '@/api/types'
+import type { Amount, RevenueReport, TimeReport } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
+import RevenueChart from '@/components/RevenueChart.vue'
 import { formatDuration, formatMoney, isoDate } from '@/lib/format'
 
 type Group = TimeReport['group_by']
@@ -26,6 +27,20 @@ const range = reactive({
 const groupBy = ref<Group>('client')
 const report = ref<TimeReport | null>(null)
 const error = ref('')
+const year = ref(now.getFullYear())
+const revenue = ref<RevenueReport | null>(null)
+const revenueCurrency = ref('EUR')
+
+const revenueCurrencies = () =>
+  [...new Set((revenue.value?.invoiced ?? []).map((a) => a.currency))].sort()
+
+async function loadRevenue() {
+  revenue.value = await api.get<RevenueReport>('/reports/revenue', { year: year.value })
+  const currencies = revenueCurrencies()
+  if (currencies.length && !currencies.includes(revenueCurrency.value)) {
+    revenueCurrency.value = currencies[0]!
+  }
+}
 
 function preset(name: keyof typeof PRESETS) {
   range.from = isoDate(PRESETS[name][0])
@@ -50,7 +65,11 @@ async function load() {
 }
 
 watch([range, groupBy], load)
-onMounted(load)
+watch(year, loadRevenue)
+onMounted(() => {
+  load()
+  loadRevenue().catch((e) => (error.value = (e as Error).message))
+})
 </script>
 
 <template>
@@ -115,6 +134,23 @@ onMounted(load)
         </tbody>
       </table>
     </template>
+
+    <div v-if="revenue" class="card revenue">
+      <div class="revenue-header">
+        <h2>Revenue {{ revenue.year }}</h2>
+        <div class="header-actions">
+          <select v-if="revenueCurrencies().length > 1" v-model="revenueCurrency">
+            <option v-for="c in revenueCurrencies()" :key="c">{{ c }}</option>
+          </select>
+          <button type="button" aria-label="Previous year" @click="year--">‹</button>
+          <button type="button" aria-label="Next year" @click="year++">›</button>
+        </div>
+      </div>
+      <RevenueChart :report="revenue" :currency="revenueCurrency" />
+      <p class="muted">
+        Invoiced {{ amounts(revenue.invoiced) }} · Paid {{ amounts(revenue.paid) }}
+      </p>
+    </div>
   </section>
 </template>
 
@@ -146,6 +182,21 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.revenue {
+  margin-top: 1.5rem;
+}
+
+.revenue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.revenue-header h2 {
+  font-size: 1.125rem;
+  margin: 0;
 }
 
 .stat strong {
