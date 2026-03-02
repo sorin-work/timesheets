@@ -10,6 +10,7 @@ from timesheets.errors import install_error_handlers
 from timesheets.routers import (
     auth,
     clients,
+    dashboard,
     entries,
     invoices,
     projects,
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(timesheet.router)
     app.include_router(invoices.router)
     app.include_router(reports.router)
+    app.include_router(dashboard.router)
     app.include_router(settings.router)
     return app
 
