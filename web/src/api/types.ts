@@ -180,3 +180,14 @@ export interface UnbilledSummary {
   currency: string
   projects: UnbilledProject[]
 }
+
+export interface Dashboard {
+  today_seconds: number
+  week_seconds: number
+  unbilled_seconds: number
+  unbilled: Amount[]
+  outstanding: Amount[]
+  outstanding_count: number
+  overdue_count: number
+  recent: Entry[]
+}
