@@ -1,0 +1,30 @@
+name: timesheets
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: timesheets
+      POSTGRES_PASSWORD: timesheets
+      POSTGRES_DB: timesheets
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgresql+psycopg://timesheets:timesheets@db:5432/timesheets
+      SECRET_KEY: ${SECRET_KEY:-local-development-secret-change-me}
+      SEED_DEMO: ${SEED_DEMO:-true}
+    depends_on:
+      - db
+
+  web:
+    build: ./web
+    depends_on:
+      - api
+    ports:
+      - '${WEB_PORT:-4412}:80'
+
+volumes:
+  db-data:
