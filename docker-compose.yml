@@ -3,28 +3,57 @@ name: timesheets
 services:
   db:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: timesheets
       POSTGRES_PASSWORD: timesheets
       POSTGRES_DB: timesheets
     volumes:
       - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U timesheets -d timesheets']
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   api:
     build: ./api
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://timesheets:timesheets@db:5432/timesheets
       SECRET_KEY: ${SECRET_KEY:-local-development-secret-change-me}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Creates demo@example.com / demo-password with six months of sample data.
       SEED_DEMO: ${SEED_DEMO:-true}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
 
   web:
     build: ./web
+    restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - '${WEB_PORT:-4412}:80'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
 volumes:
   db-data:
