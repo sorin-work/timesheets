@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import TimerBar from '@/components/TimerBar.vue'
 import { useAuth } from '@/stores/auth'
@@ -19,6 +19,12 @@ const nav = [
   { to: '/reports', label: 'Reports' },
   { to: '/settings', label: 'Settings' },
 ]
+
+const route = useRoute()
+
+function isCurrent(to: string): boolean {
+  return to === '/' ? route.path === '/' : route.path === to || route.path.startsWith(`${to}/`)
+}
 
 function logout() {
   auth.logout()
@@ -39,6 +45,7 @@ function logout() {
           :key="item.to"
           :to="item.to"
           class="nav-link"
+          :class="{ current: isCurrent(item.to) }"
           @click="menuOpen = false"
         >
           {{ item.label }}
@@ -105,7 +112,7 @@ nav {
   background: #1f2937;
 }
 
-.nav-link.router-link-exact-active {
+.nav-link.current {
   background: #374151;
   color: white;
 }
