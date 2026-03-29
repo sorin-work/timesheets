@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 
 import { api, ApiError } from '@/api/client'
 import type { Rounding, Settings } from '@/api/types'
+import PasswordForm from '@/components/PasswordForm.vue'
 import { CURRENCIES } from '@/lib/currencies'
 
 const loaded = ref(false)
@@ -145,6 +146,8 @@ onMounted(async () => {
         <button class="primary" type="submit" :disabled="busy">Save settings</button>
       </div>
     </form>
+
+    <PasswordForm class="password" />
   </section>
 </template>
 
@@ -160,6 +163,10 @@ fieldset {
 legend {
   font-weight: 600;
   padding: 0 0.25rem;
+}
+
+.password {
+  margin-top: 1.5rem;
 }
 
 .saved {
