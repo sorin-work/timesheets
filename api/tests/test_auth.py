@@ -70,3 +70,36 @@ def test_expired_token_is_rejected(client, auth):
     )
     r = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 401
+
+
+def test_change_password(client, auth):
+    r = client.post(
+        "/api/auth/password",
+        json={"current_password": "password123", "new_password": "a-new-secret"},
+        headers=auth,
+    )
+    assert r.status_code == 204
+    login = {"email": "freelancer@example.com"}
+    assert (
+        client.post("/api/auth/login", json={**login, "password": "password123"}).status_code == 401
+    )
+    assert (
+        client.post("/api/auth/login", json={**login, "password": "a-new-secret"}).status_code
+        == 200
+    )
+
+
+def test_change_password_checks_the_current_one(client, auth):
+    r = client.post(
+        "/api/auth/password",
+        json={"current_password": "wrong-one", "new_password": "a-new-secret"},
+        headers=auth,
+    )
+    assert r.status_code == 422
+    assert r.json()["error"]["details"][0]["field"] == "current_password"
+    r = client.post(
+        "/api/auth/password",
+        json={"current_password": "password123", "new_password": "short"},
+        headers=auth,
+    )
+    assert r.status_code == 422

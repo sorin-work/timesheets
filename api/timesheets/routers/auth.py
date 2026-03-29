@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
 from timesheets.config import get_settings
 from timesheets.deps import CurrentUser, DbSession
+from timesheets.errors import ValidationFailed
 from timesheets.models import User
-from timesheets.schemas.auth import LoginIn, SignupIn, TokenOut, UserOut
+from timesheets.schemas.auth import LoginIn, PasswordChangeIn, SignupIn, TokenOut, UserOut
 from timesheets.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -37,3 +38,15 @@ def login(body: LoginIn, db: DbSession) -> TokenOut:
 @router.get("/me", response_model=UserOut)
 def me(user: CurrentUser) -> User:
     return user
+
+
+@router.post("/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(body: PasswordChangeIn, db: DbSession, user: CurrentUser) -> Response:
+    if not verify_password(body.current_password, user.password_hash):
+        raise ValidationFailed(
+            "Current password is incorrect",
+            [{"field": "current_password", "message": "Current password is incorrect"}],
+        )
+    user.password_hash = hash_password(body.new_password)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
