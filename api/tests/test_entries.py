@@ -130,3 +130,19 @@ def test_delete_entry(client, auth, project):
     eid = client.post("/api/entries", json=entry(project["id"]), headers=auth).json()["id"]
     assert client.delete(f"/api/entries/{eid}", headers=auth).status_code == 204
     assert client.get(f"/api/entries/{eid}", headers=auth).status_code == 404
+
+
+def test_last_partial_page_is_counted(client, auth, project):
+    for day in range(1, 6):
+        client.post(
+            "/api/entries",
+            json=entry(
+                project["id"], start=f"2025-11-0{day}T09:00:00Z", end=f"2025-11-0{day}T10:00:00Z"
+            ),
+            headers=auth,
+        )
+    body = client.get("/api/entries?page_size=2", headers=auth).json()
+    assert body["total"] == 5
+    assert body["pages"] == 3
+    last = client.get("/api/entries?page_size=2&page=3", headers=auth).json()
+    assert [e["started_at"][:10] for e in last["items"]] == ["2025-11-01"]

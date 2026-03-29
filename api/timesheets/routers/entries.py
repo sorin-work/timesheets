@@ -1,3 +1,4 @@
+import math
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 
@@ -72,7 +73,7 @@ def list_entries(
         total=total,
         page=page,
         page_size=page_size,
-        pages=max(1, total // page_size),
+        pages=max(1, math.ceil(total / page_size)),
     )
 
 
