@@ -98,3 +98,11 @@ def project(client, auth):
         "/api/projects", json={"client_id": acme["id"], "name": "Website"}, headers=auth
     )
     return r.json()
+
+
+@pytest.fixture(autouse=True)
+def _fast_password_hashing(monkeypatch):
+    """Production scrypt cost is deliberately slow; tests do not need that."""
+    from timesheets import security
+
+    monkeypatch.setattr(security, "_N", 2**8)
