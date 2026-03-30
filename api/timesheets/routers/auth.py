@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 
 from timesheets.config import get_settings
 from timesheets.deps import CurrentUser, DbSession
 from timesheets.errors import ValidationFailed
 from timesheets.models import User
+from timesheets.ratelimit import limit_auth
 from timesheets.schemas.auth import LoginIn, PasswordChangeIn, SignupIn, TokenOut, UserOut
 from timesheets.security import create_access_token, hash_password, verify_password
 
@@ -17,7 +18,12 @@ def _token_for(user: User) -> TokenOut:
     return TokenOut(access_token=token, user=UserOut.model_validate(user))
 
 
-@router.post("/signup", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/signup",
+    response_model=TokenOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_auth)],
+)
 def signup(body: SignupIn, db: DbSession) -> TokenOut:
     if db.scalar(select(User.id).where(User.email == body.email)) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists")
@@ -27,7 +33,7 @@ def signup(body: SignupIn, db: DbSession) -> TokenOut:
     return _token_for(user)
 
 
-@router.post("/login", response_model=TokenOut)
+@router.post("/login", response_model=TokenOut, dependencies=[Depends(limit_auth)])
 def login(body: LoginIn, db: DbSession) -> TokenOut:
     user = db.scalar(select(User).where(User.email == body.email))
     if user is None or not verify_password(body.password, user.password_hash):

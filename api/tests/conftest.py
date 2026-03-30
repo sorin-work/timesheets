@@ -106,3 +106,11 @@ def _fast_password_hashing(monkeypatch):
     from timesheets import security
 
     monkeypatch.setattr(security, "_N", 2**8)
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    from timesheets.ratelimit import auth_limiter
+
+    auth_limiter.reset()
+    yield
