@@ -7,6 +7,9 @@ import ClientForm from '@/components/ClientForm.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import { formatMoney } from '@/lib/format'
+import { useToasts } from '@/stores/toasts'
+
+const toast = useToasts()
 
 const clients = ref<Client[]>([])
 const loading = ref(true)
@@ -32,7 +35,8 @@ function closeForm() {
   creating.value = false
 }
 
-function onSaved() {
+function onSaved(client: Client) {
+  toast.success(editing.value ? `Saved ${client.name}` : `Added ${client.name}`)
   closeForm()
   load()
 }
@@ -42,9 +46,10 @@ async function toggleArchived(client: Client) {
   if (action === 'archive' && !confirm(`Archive ${client.name}? Their history is kept.`)) return
   try {
     await api.post(`/clients/${client.id}/${action}`)
+    toast.success(action === 'archive' ? `Archived ${client.name}` : `Restored ${client.name}`)
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    toast.error((e as Error).message)
   }
 }
 

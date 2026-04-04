@@ -10,9 +10,11 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import { formatDate, formatDuration, formatTime } from '@/lib/format'
 import { useProjects } from '@/stores/projects'
 import { useTimer } from '@/stores/timer'
+import { useToasts } from '@/stores/toasts'
 
 const { projects, load: loadProjects } = useProjects()
 const timer = useTimer()
+const toast = useToasts()
 
 const clients = ref<Client[]>([])
 const page = ref<Page<Entry> | null>(null)
@@ -28,6 +30,7 @@ function closeForm() {
 }
 
 function onSaved() {
+  toast.success(editing.value ? 'Entry updated' : 'Time added')
   closeForm()
   load()
 }

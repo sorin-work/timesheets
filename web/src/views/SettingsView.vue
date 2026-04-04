@@ -4,6 +4,9 @@ import { onMounted, reactive, ref } from 'vue'
 import { api, ApiError } from '@/api/client'
 import type { Rounding, Settings } from '@/api/types'
 import PasswordForm from '@/components/PasswordForm.vue'
+import { useToasts } from '@/stores/toasts'
+
+const toast = useToasts()
 import { CURRENCIES } from '@/lib/currencies'
 
 const loaded = ref(false)
@@ -53,6 +56,7 @@ async function save() {
     const { email: _email, ...changes } = form
     fill(await api.patch<Settings>('/settings', changes))
     saved.value = true
+    toast.success('Settings saved')
   } catch (e) {
     if (e instanceof ApiError) {
       error.value = e.message

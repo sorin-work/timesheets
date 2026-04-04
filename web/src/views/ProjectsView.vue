@@ -8,8 +8,10 @@ import ModalDialog from '@/components/ModalDialog.vue'
 import ProjectForm from '@/components/ProjectForm.vue'
 import { formatMoney } from '@/lib/format'
 import { useProjects } from '@/stores/projects'
+import { useToasts } from '@/stores/toasts'
 
 const { load: refreshPickers } = useProjects()
+const toast = useToasts()
 
 const projects = ref<Project[]>([])
 const clients = ref<Client[]>([])
@@ -51,7 +53,7 @@ async function toggleArchived(project: Project) {
     await load()
     refreshPickers(true)
   } catch (e) {
-    error.value = (e as Error).message
+    toast.error((e as Error).message)
   }
 }
 
@@ -60,7 +62,8 @@ function closeForm() {
   creating.value = false
 }
 
-function onSaved() {
+function onSaved(project: Project) {
+  toast.success(editing.value ? `Saved ${project.name}` : `Added ${project.name}`)
   closeForm()
   load()
   refreshPickers(true)

@@ -8,6 +8,9 @@ import InvoiceEditForm from '@/components/InvoiceEditForm.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { formatDate, formatMoney } from '@/lib/format'
+import { useToasts } from '@/stores/toasts'
+
+const toast = useToasts()
 
 const route = useRoute()
 const router = useRouter()
@@ -36,8 +39,9 @@ async function act(action: 'send' | 'pay' | 'unpay' | 'revert') {
   try {
     const body = action === 'pay' ? { paid_on: paidOn.value } : undefined
     invoice.value = await api.post<Invoice>(`/invoices/${id}/${action}`, body)
+    toast.success(`Invoice ${invoice.value.number} is now ${invoice.value.status}`)
   } catch (e) {
-    error.value = (e as Error).message
+    toast.error((e as Error).message)
   } finally {
     busy.value = false
   }
@@ -48,6 +52,7 @@ async function remove() {
   busy.value = true
   try {
     await api.delete(`/invoices/${id}`)
+    toast.success('Draft deleted')
     await router.push('/invoices')
   } catch (e) {
     error.value = (e as Error).message
