@@ -146,3 +146,21 @@ def test_last_partial_page_is_counted(client, auth, project):
     assert body["pages"] == 3
     last = client.get("/api/entries?page_size=2&page=3", headers=auth).json()
     assert [e["started_at"][:10] for e in last["items"]] == ["2025-11-01"]
+
+
+def test_export_entries_as_csv(client, auth, project):
+    client.post(
+        "/api/entries", json=entry(project["id"], description='Fix "quotes", commas'), headers=auth
+    )
+    client.post(
+        "/api/entries",
+        json=entry(project["id"], start="2025-11-18T09:00:00Z", end="2025-11-18T09:15:00Z"),
+        headers=auth,
+    )
+    r = client.get("/api/entries/export.csv?from=2025-11-17&to=2025-11-17", headers=auth)
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/csv")
+    lines = r.text.strip().splitlines()
+    assert lines[0].startswith("date,start,end,client")
+    assert lines[1] == '2025-11-17,09:00,10:30,Acme,Website,"Fix ""quotes"", commas",1.50,yes,no'
+    assert len(lines) == 2

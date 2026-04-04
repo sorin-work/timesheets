@@ -1,9 +1,12 @@
+import csv
+import io
 import math
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Response, status
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, Query, Response, status
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import joinedload
 
 from timesheets.deps import CurrentUser, DbSession
@@ -33,19 +36,17 @@ def _day_start(day: date) -> datetime:
     return datetime.combine(day, time.min, tzinfo=UTC)
 
 
-@router.get("", response_model=EntryPage)
-def list_entries(
-    db: DbSession,
-    user: CurrentUser,
-    client_id: int | None = None,
-    project_id: int | None = None,
-    date_from: Annotated[date | None, Query(alias="from")] = None,
-    date_to: Annotated[date | None, Query(alias="to")] = None,
-    billable: bool | None = None,
-    q: str | None = None,
-    page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
-) -> EntryPage:
+@dataclass
+class EntryFilters:
+    client_id: int | None = None
+    project_id: int | None = None
+    date_from: Annotated[date | None, Query(alias="from")] = None
+    date_to: Annotated[date | None, Query(alias="to")] = None
+    billable: bool | None = None
+    q: str | None = None
+
+
+def _filtered(user: User, filters: EntryFilters) -> Select[tuple[TimeEntry]]:
     stmt = (
         select(TimeEntry)
         .join(TimeEntry.project)
@@ -53,19 +54,30 @@ def list_entries(
         .where(TimeEntry.user_id == user.id)
         .order_by(TimeEntry.started_at.desc(), TimeEntry.id.desc())
     )
-    if client_id is not None:
-        stmt = stmt.where(Project.client_id == client_id)
-    if project_id is not None:
-        stmt = stmt.where(TimeEntry.project_id == project_id)
-    if date_from is not None:
-        stmt = stmt.where(TimeEntry.started_at >= _day_start(date_from))
-    if date_to is not None:
-        stmt = stmt.where(TimeEntry.started_at < _day_start(date_to + timedelta(days=1)))
-    if billable is not None:
-        stmt = stmt.where(TimeEntry.billable.is_(billable))
-    if q:
-        stmt = stmt.where(TimeEntry.description.ilike(f"%{q.strip()}%"))
+    if filters.client_id is not None:
+        stmt = stmt.where(Project.client_id == filters.client_id)
+    if filters.project_id is not None:
+        stmt = stmt.where(TimeEntry.project_id == filters.project_id)
+    if filters.date_from is not None:
+        stmt = stmt.where(TimeEntry.started_at >= _day_start(filters.date_from))
+    if filters.date_to is not None:
+        stmt = stmt.where(TimeEntry.started_at < _day_start(filters.date_to + timedelta(days=1)))
+    if filters.billable is not None:
+        stmt = stmt.where(TimeEntry.billable.is_(filters.billable))
+    if filters.q:
+        stmt = stmt.where(TimeEntry.description.ilike(f"%{filters.q.strip()}%"))
+    return stmt
 
+
+@router.get("", response_model=EntryPage)
+def list_entries(
+    db: DbSession,
+    user: CurrentUser,
+    filters: Annotated[EntryFilters, Depends()],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> EntryPage:
+    stmt = _filtered(user, filters)
     total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
     items = db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)).all()
     return EntryPage(
@@ -74,6 +86,48 @@ def list_entries(
         page=page,
         page_size=page_size,
         pages=max(1, math.ceil(total / page_size)),
+    )
+
+
+@router.get("/export.csv", response_class=Response)
+def export_entries(
+    db: DbSession, user: CurrentUser, filters: Annotated[EntryFilters, Depends()]
+) -> Response:
+    """The filtered entries as CSV, newest first, durations in decimal hours."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "date",
+            "start",
+            "end",
+            "client",
+            "project",
+            "description",
+            "hours",
+            "billable",
+            "invoiced",
+        ]
+    )
+    for entry in db.scalars(_filtered(user, filters).where(TimeEntry.ended_at.is_not(None))):
+        assert entry.ended_at is not None
+        writer.writerow(
+            [
+                entry.started_at.date().isoformat(),
+                entry.started_at.strftime("%H:%M"),
+                entry.ended_at.strftime("%H:%M"),
+                entry.client_name,
+                entry.project_name,
+                entry.description,
+                f"{entry.duration_seconds / 3600:.2f}",
+                "yes" if entry.billable else "no",
+                "yes" if entry.invoice_id else "no",
+            ]
+        )
+    return Response(
+        buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="time-entries.csv"'},
     )
 
 
