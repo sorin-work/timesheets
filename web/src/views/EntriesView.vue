@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
-import { api } from '@/api/client'
+import { api, download } from '@/api/client'
 import type { Client, Entry, Page } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
 import EntryForm from '@/components/EntryForm.vue'
@@ -33,6 +33,25 @@ function onSaved() {
   toast.success(editing.value ? 'Entry updated' : 'Time added')
   closeForm()
   load()
+}
+
+function onDeleted() {
+  toast.success('Entry deleted')
+  closeForm()
+  load()
+}
+
+const exporting = ref(false)
+
+async function exportCsv() {
+  exporting.value = true
+  try {
+    await download('/entries/export.csv', { ...filters }, 'time-entries.csv')
+  } catch (e) {
+    toast.error((e as Error).message)
+  } finally {
+    exporting.value = false
+  }
 }
 const PAGE_SIZE = 25
 
@@ -113,9 +132,14 @@ onMounted(async () => {
   <section>
     <div class="page-header">
       <h1>Time entries</h1>
-      <button class="primary" type="button" :disabled="!projects.length" @click="creating = true">
-        Add time
-      </button>
+      <div class="header-actions">
+        <button type="button" :disabled="exporting || !page?.total" @click="exportCsv">
+          Export CSV
+        </button>
+        <button class="primary" type="button" :disabled="!projects.length" @click="creating = true">
+          Add time
+        </button>
+      </div>
     </div>
 
     <div class="filters card">
@@ -190,7 +214,7 @@ onMounted(async () => {
       :title="editing ? 'Edit entry' : 'Add time'"
       @close="closeForm"
     >
-      <EntryForm :entry="editing" @saved="onSaved" @deleted="onSaved" @cancel="closeForm" />
+      <EntryForm :entry="editing" @saved="onSaved" @deleted="onDeleted" @cancel="closeForm" />
     </ModalDialog>
   </section>
 </template>

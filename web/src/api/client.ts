@@ -92,3 +92,18 @@ export const api = {
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   delete: (path: string) => request<void>('DELETE', path),
 }
+
+/** Download an authenticated file (e.g. a CSV export) through a temporary link. */
+export async function download(path: string, query: Query, filename: string): Promise<void> {
+  const token = getToken()
+  const response = await fetch(withQuery(`/api${path}`, query), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!response.ok) throw new ApiError(response.status, `Download failed (${response.status})`)
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
