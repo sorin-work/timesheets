@@ -357,3 +357,12 @@ def test_unbilled_summary_previews_the_invoice(client, auth, billed_client):
     assert website["seconds"] == 3600
     assert website["billable_seconds"] == 4500
     assert audit["hourly_rate"] == "150.00"
+
+
+def test_whole_hours_are_billed_as_whole_hours_with_rounding(client, auth, billed_client):
+    client.patch("/api/settings", json={"rounding": "6"}, headers=auth)
+    site = billed_client["site"]["id"]
+    log(client, auth, site, "2026-01-05T09:00:00Z", "2026-01-05T11:00:00Z")
+    invoice = generate(client, auth, billed_client["client"]["id"]).json()
+    assert invoice["lines"][0]["quantity"] == "2.00"
+    assert invoice["subtotal"] == "200.00"

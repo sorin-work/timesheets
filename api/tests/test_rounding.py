@@ -36,3 +36,11 @@ def test_billable_hours():
 def test_unknown_rule_is_rejected():
     with pytest.raises(ValueError):
         round_seconds(60, "10")
+
+
+@pytest.mark.parametrize(
+    ("rule", "minutes"),
+    [("6", 6), ("6", 12), ("6", 60), ("15", 15), ("15", 30), ("15", 120)],
+)
+def test_durations_already_on_a_step_are_not_rounded_further(rule, minutes):
+    assert round_seconds(minutes * 60, rule) == minutes * 60

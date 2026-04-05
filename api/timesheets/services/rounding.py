@@ -21,7 +21,7 @@ def round_seconds(seconds: int, rule: Rounding | str) -> int:
     if rule is Rounding.NONE:
         return seconds
     step = rule.step_seconds
-    return (seconds // step + 1) * step
+    return -(-seconds // step) * step  # ceiling division
 
 
 def billable_hours(seconds: int, rule: Rounding | str) -> float:
