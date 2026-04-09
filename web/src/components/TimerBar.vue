@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 
 import { formatClock } from '@/lib/format'
 import { useProjects } from '@/stores/projects'
@@ -61,9 +61,25 @@ function changeProject() {
   }
 }
 
+// Show the running time in the browser tab, so it is visible from other tabs.
+const baseTitle = { value: document.title }
+watchEffect(() => {
+  const running = timer.state.running
+  if (running) {
+    document.title = `▶ ${formatClock(timer.elapsed.value)} · ${running.project_name}`
+  } else if (document.title.startsWith('▶')) {
+    document.title = baseTitle.value
+  }
+})
+
 onMounted(() => {
+  baseTitle.value = document.title
   load()
   timer.refresh().catch(() => {})
+})
+
+onBeforeUnmount(() => {
+  if (document.title.startsWith('▶')) document.title = baseTitle.value
 })
 </script>
 
