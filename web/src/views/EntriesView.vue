@@ -41,6 +41,15 @@ function onDeleted() {
   load()
 }
 
+async function continueEntry(entry: Entry) {
+  try {
+    await timer.resume(entry.id)
+    toast.info(`Timer started: ${entry.description || entry.project_name}`)
+  } catch (e) {
+    toast.error((e as Error).message)
+  }
+}
+
 const exporting = ref(false)
 
 async function exportCsv() {
@@ -196,6 +205,18 @@ onMounted(async () => {
                 {{ e.ended_at ? formatTime(e.ended_at) : 'now' }}
               </td>
               <td class="num">{{ e.running ? 'running' : formatDuration(e.duration_seconds) }}</td>
+              <td class="row-actions">
+                <button
+                  v-if="!e.running"
+                  type="button"
+                  class="play"
+                  title="Continue this task"
+                  aria-label="Continue this task"
+                  @click.stop="continueEntry(e)"
+                >
+                  ▶
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -247,6 +268,11 @@ onMounted(async () => {
 
 .desc {
   width: 55%;
+}
+
+.play {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
 }
 
 .clickable {

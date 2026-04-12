@@ -34,6 +34,11 @@ async function start(projectId: number, description: string) {
   state.version++
 }
 
+async function resume(entryId: number) {
+  setRunning(await api.post<Entry>(`/timer/continue/${entryId}`))
+  state.version++
+}
+
 async function stop() {
   await api.post<Entry>('/timer/stop')
   setRunning(null)
@@ -49,5 +54,5 @@ const elapsed = computed(() =>
 )
 
 export function useTimer() {
-  return { state: readonly(state), elapsed, refresh, start, stop, update }
+  return { state: readonly(state), elapsed, refresh, start, resume, stop, update }
 }
