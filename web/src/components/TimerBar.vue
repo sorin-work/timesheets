@@ -72,13 +72,28 @@ watchEffect(() => {
   }
 })
 
+const descriptionInput = ref<HTMLInputElement | null>(null)
+
+function onShortcut(event: KeyboardEvent) {
+  if (!event.altKey || event.ctrlKey || event.metaKey) return
+  if (event.code === 'KeyS') {
+    event.preventDefault()
+    toggle()
+  } else if (event.code === 'KeyN') {
+    event.preventDefault()
+    descriptionInput.value?.focus()
+  }
+}
+
 onMounted(() => {
+  document.addEventListener('keydown', onShortcut)
   baseTitle.value = document.title
   load()
   timer.refresh().catch(() => {})
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onShortcut)
   if (document.title.startsWith('▶')) document.title = baseTitle.value
 })
 </script>
@@ -86,8 +101,10 @@ onBeforeUnmount(() => {
 <template>
   <form class="timer" @submit.prevent="toggle">
     <input
+      ref="descriptionInput"
       v-model="description"
       class="description"
+      title="Alt+N to focus, Alt+S to start or stop"
       placeholder="What are you working on?"
       maxlength="500"
       @blur="saveDescription"
