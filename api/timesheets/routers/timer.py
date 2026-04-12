@@ -7,7 +7,8 @@ from sqlalchemy.exc import IntegrityError
 
 from timesheets.deps import CurrentUser, DbSession
 from timesheets.errors import Conflict
-from timesheets.models import TimeEntry
+from timesheets.models import TimeEntry, User
+from timesheets.routers.common import get_owned
 from timesheets.routers.entries import _active_project
 from timesheets.schemas.entries import Description, EntryOut
 
@@ -38,6 +39,20 @@ def current_timer(db: DbSession, user: CurrentUser) -> TimeEntry | None:
 
 @router.post("/start", response_model=EntryOut, status_code=201)
 def start_timer(body: TimerStart, db: DbSession, user: CurrentUser) -> TimeEntry:
+    return start(db, user, body)
+
+
+@router.post("/continue/{entry_id}", response_model=EntryOut, status_code=201)
+def continue_entry(entry_id: int, db: DbSession, user: CurrentUser) -> TimeEntry:
+    """Start a new timer with the project, description and billable flag of an entry."""
+    entry = get_owned(db, TimeEntry, entry_id, user, "Entry")
+    body = TimerStart(
+        project_id=entry.project_id, description=entry.description, billable=entry.billable
+    )
+    return start(db, user, body)
+
+
+def start(db, user: User, body: TimerStart) -> TimeEntry:
     project = _active_project(db, body.project_id, user)
     now = datetime.now(UTC)
     previous = running_entry(db, user.id)

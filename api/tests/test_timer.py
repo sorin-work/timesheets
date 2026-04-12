@@ -56,3 +56,24 @@ def test_timer_requires_an_active_project(client, auth, other_auth, project):
 def test_timers_are_per_user(client, auth, other_auth, project):
     client.post("/api/timer/start", json={"project_id": project["id"]}, headers=auth)
     assert client.get("/api/timer", headers=other_auth).json() is None
+
+
+def test_continue_an_entry(client, auth, other_auth, project):
+    done = client.post(
+        "/api/entries",
+        json={
+            "project_id": project["id"],
+            "started_at": "2026-04-01T09:00:00Z",
+            "ended_at": "2026-04-01T10:00:00Z",
+            "description": "API docs",
+            "billable": False,
+        },
+        headers=auth,
+    ).json()
+    r = client.post(f"/api/timer/continue/{done['id']}", headers=auth)
+    assert r.status_code == 201
+    running = r.json()
+    assert running["running"] is True
+    assert running["id"] != done["id"]
+    assert (running["description"], running["billable"]) == ("API docs", False)
+    assert client.post(f"/api/timer/continue/{done['id']}", headers=other_auth).status_code == 404
