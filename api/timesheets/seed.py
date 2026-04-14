@@ -114,7 +114,8 @@ def _projects(session: Session, user: User) -> list[Project]:
 
 
 def _entries(session: Session, user: User, projects: list[Project], days: int, rng: random.Random):
-    today = clock.today()
+    now = clock.now()
+    today = now.date()
     start_day = today - timedelta(days=days)
     for offset in range(days + 1):
         day = start_day + timedelta(days=offset)
@@ -125,6 +126,8 @@ def _entries(session: Session, user: User, projects: list[Project], days: int, r
             project = rng.choice(projects)
             minutes = rng.choice([25, 40, 50, 65, 80, 95, 120, 150])
             end = cursor + timedelta(minutes=minutes)
+            if end > now:
+                break
             session.add(
                 TimeEntry(
                     user_id=user.id,

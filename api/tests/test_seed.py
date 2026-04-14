@@ -18,3 +18,11 @@ def test_seed_creates_a_usable_demo_account(session, client):
 def test_seed_is_idempotent(session):
     assert seed(session, days=10) is not None
     assert seed(session, days=10) is None
+
+
+def test_seed_has_no_entries_in_the_future(session):
+    from timesheets import clock
+
+    seed(session, days=3)
+    latest = session.scalar(select(func.max(TimeEntry.ended_at)))
+    assert latest <= clock.now()
