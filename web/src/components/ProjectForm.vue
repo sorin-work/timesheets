@@ -25,6 +25,7 @@ const form = reactive({
   hourly_rate: props.project?.hourly_rate ?? '',
   billable: props.project?.billable ?? true,
   color: props.project?.color ?? COLORS[0],
+  budget_hours: props.project?.budget_hours ?? '',
 })
 const errors = ref<Record<string, string>>({})
 const error = ref('')
@@ -41,6 +42,7 @@ async function submit() {
   errors.value = {}
   error.value = ''
   const rate = String(form.hourly_rate).trim() || null
+  const budget = String(form.budget_hours).trim() || null
   try {
     const saved = props.project
       ? await api.patch<Project>(`/projects/${props.project.id}`, {
@@ -48,8 +50,9 @@ async function submit() {
           hourly_rate: rate,
           billable: form.billable,
           color: form.color,
+          budget_hours: budget,
         })
-      : await api.post<Project>('/projects', { ...form, hourly_rate: rate })
+      : await api.post<Project>('/projects', { ...form, hourly_rate: rate, budget_hours: budget })
     emit('saved', saved)
   } catch (e) {
     if (e instanceof ApiError) {
@@ -80,6 +83,11 @@ async function submit() {
       <input v-model="form.hourly_rate" inputmode="decimal" :placeholder="ratePlaceholder" />
       <small class="muted">Leave empty to use the client's rate.</small>
       <small v-if="errors.hourly_rate" class="error">{{ errors.hourly_rate }}</small>
+    </label>
+    <label>
+      Budget (hours)
+      <input v-model="form.budget_hours" inputmode="decimal" placeholder="No budget" />
+      <small v-if="errors.budget_hours" class="error">{{ errors.budget_hours }}</small>
     </label>
     <label class="inline">
       <input v-model="form.billable" type="checkbox" />

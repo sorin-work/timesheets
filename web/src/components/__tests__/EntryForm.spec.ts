@@ -17,6 +17,8 @@ const project: Project = {
   currency: 'EUR',
   billable: true,
   color: '#4f46e5',
+  budget_hours: null,
+  used_seconds: 0,
   archived_at: null,
   created_at: '2026-01-01T00:00:00Z',
 }

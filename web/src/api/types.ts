@@ -49,6 +49,8 @@ export interface Project {
   currency: string
   billable: boolean
   color: string
+  budget_hours: string | null
+  used_seconds: number
   archived_at: string | null
   created_at: string
 }

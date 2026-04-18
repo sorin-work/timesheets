@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 
 import { api } from '@/api/client'
 import type { Client, Project } from '@/api/types'
+import BudgetBar from '@/components/BudgetBar.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import ProjectForm from '@/components/ProjectForm.vue'
@@ -112,6 +113,13 @@ onMounted(load)
                 {{ p.name }}
                 <span v-if="!p.billable" class="badge">non-billable</span>
                 <span v-if="p.archived_at" class="badge">archived</span>
+              </td>
+              <td>
+                <BudgetBar
+                  v-if="p.budget_hours"
+                  :used-seconds="p.used_seconds"
+                  :budget-hours="p.budget_hours"
+                />
               </td>
               <td class="num">
                 <template v-if="p.effective_rate">
