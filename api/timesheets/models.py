@@ -72,6 +72,7 @@ class Project(TimestampMixin, Base):
     hourly_rate: Mapped[Decimal | None] = mapped_column(Money)
     billable: Mapped[bool] = mapped_column(Boolean, default=True)
     color: Mapped[str] = mapped_column(String(7), default="#4f46e5")
+    budget_hours: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[User] = relationship()
@@ -82,6 +83,9 @@ class Project(TimestampMixin, Base):
         if self.hourly_rate is not None:
             return self.hourly_rate
         return self.client.hourly_rate
+
+    # Filled in by the projects router from an aggregate query.
+    used_seconds: int = 0
 
     @property
     def client_name(self) -> str:

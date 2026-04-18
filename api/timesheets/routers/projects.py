@@ -1,16 +1,35 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
 from timesheets.deps import CurrentUser, DbSession
 from timesheets.errors import ValidationFailed
-from timesheets.models import Client, Project
+from timesheets.models import Client, Project, TimeEntry
 from timesheets.routers.common import get_owned
 from timesheets.schemas.projects import ProjectIn, ProjectOut, ProjectUpdate
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+
+def _with_usage(db, projects: list[Project]) -> list[Project]:
+    """Attach the total tracked seconds to each project in one query."""
+    if not projects:
+        return projects
+    seconds = func.sum(func.extract("epoch", TimeEntry.ended_at - TimeEntry.started_at))
+    rows = db.execute(
+        select(TimeEntry.project_id, seconds)
+        .where(
+            TimeEntry.project_id.in_([p.id for p in projects]),
+            TimeEntry.ended_at.is_not(None),
+        )
+        .group_by(TimeEntry.project_id)
+    ).all()
+    used = {project_id: int(total or 0) for project_id, total in rows}
+    for project in projects:
+        project.used_seconds = used.get(project.id, 0)
+    return projects
 
 
 @router.get("", response_model=list[ProjectOut])
@@ -31,7 +50,7 @@ def list_projects(
         stmt = stmt.where(Project.client_id == client_id)
     if not include_archived:
         stmt = stmt.where(Project.archived_at.is_(None))
-    return list(db.scalars(stmt))
+    return _with_usage(db, list(db.scalars(stmt)))
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
@@ -43,12 +62,12 @@ def create_project(body: ProjectIn, db: DbSession, user: CurrentUser) -> Project
     db.add(project)
     db.commit()
     db.refresh(project)
-    return project
+    return _with_usage(db, [project])[0]
 
 
 @router.get("/{project_id}", response_model=ProjectOut)
 def get_project(project_id: int, db: DbSession, user: CurrentUser) -> Project:
-    return get_owned(db, Project, project_id, user, "Project")
+    return _with_usage(db, [get_owned(db, Project, project_id, user, "Project")])[0]
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)
@@ -57,12 +76,12 @@ def update_project(
 ) -> Project:
     project = get_owned(db, Project, project_id, user, "Project")
     for field, value in body.model_dump(exclude_unset=True).items():
-        if value is None and field != "hourly_rate":
+        if value is None and field not in ("hourly_rate", "budget_hours"):
             continue
         setattr(project, field, value)
     db.commit()
     db.refresh(project)
-    return project
+    return _with_usage(db, [project])[0]
 
 
 @router.post("/{project_id}/archive", response_model=ProjectOut)

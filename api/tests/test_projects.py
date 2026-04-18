@@ -81,3 +81,32 @@ def test_projects_of_other_users_are_hidden(client, auth, other_auth):
     project = new_project(client, auth, acme["id"])
     assert client.get(f"/api/projects/{project['id']}", headers=other_auth).status_code == 404
     assert client.get("/api/projects", headers=other_auth).json() == []
+
+
+def test_project_budget_and_usage(client, auth):
+    acme = make_client(client, auth)
+    project = new_project(client, auth, acme["id"], budget_hours="20")
+    assert project["budget_hours"] == "20.00"
+    assert project["used_seconds"] == 0
+    for day in ("05", "06"):
+        client.post(
+            "/api/entries",
+            json={
+                "project_id": project["id"],
+                "started_at": f"2026-04-{day}T09:00:00Z",
+                "ended_at": f"2026-04-{day}T10:30:00Z",
+            },
+            headers=auth,
+        )
+    client.post("/api/timer/start", json={"project_id": project["id"]}, headers=auth)
+    listed = client.get("/api/projects", headers=auth).json()[0]
+    assert listed["used_seconds"] == 10800
+    assert (
+        client.get(f"/api/projects/{project['id']}", headers=auth).json()["used_seconds"] == 10800
+    )
+
+    r = client.patch(f"/api/projects/{project['id']}", json={"budget_hours": None}, headers=auth)
+    assert r.json()["budget_hours"] is None
+    assert r.json()["used_seconds"] == 10800
+    r = client.patch(f"/api/projects/{project['id']}", json={"budget_hours": "0"}, headers=auth)
+    assert r.status_code == 422
