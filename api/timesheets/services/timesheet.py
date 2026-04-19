@@ -1,7 +1,8 @@
 """Weekly timesheet: seconds per project per day, Monday to Sunday."""
 
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -37,9 +38,14 @@ class Week:
         return [sum(r.seconds[i] for r in self.rows) for i in range(7)]
 
 
+def _local_midnight(day: date, tz: ZoneInfo) -> datetime:
+    return datetime.combine(day, time.min, tzinfo=tz)
+
+
 def entries_in_week(db: Session, user: User, start: date) -> list[TimeEntry]:
-    begin = datetime.combine(start, time.min, tzinfo=UTC)
-    end = begin + timedelta(days=7)
+    tz = ZoneInfo(user.timezone)
+    begin = _local_midnight(start, tz)
+    end = _local_midnight(start + timedelta(days=7), tz)
     stmt = (
         select(TimeEntry)
         .options(joinedload(TimeEntry.project).joinedload(Project.client))
@@ -55,10 +61,12 @@ def entries_in_week(db: Session, user: User, start: date) -> list[TimeEntry]:
 
 def build_week(db: Session, user: User, day: date) -> Week:
     start = week_start(day)
+    tz = ZoneInfo(user.timezone)
     rows: dict[int, Row] = {}
     for entry in entries_in_week(db, user, start):
         row = rows.setdefault(entry.project_id, Row(entry.project))
-        index = (entry.started_at.date() - start).days
+        # Entries belong to the day they started on in the user's time zone.
+        index = (entry.started_at.astimezone(tz).date() - start).days
         row.seconds[index] += entry.duration_seconds
     ordered = sorted(rows.values(), key=lambda r: (r.project.client.name, r.project.name))
     return Week(start=start, rows=ordered)
@@ -74,12 +82,13 @@ def set_cell(db: Session, user: User, project: Project, day: date, seconds: int)
     Timer and manual entries are left alone; the difference is kept in a single
     "grid" entry for the cell that is created, resized or removed as needed.
     """
-    begin = datetime.combine(day, time.min, tzinfo=UTC)
+    tz = ZoneInfo(user.timezone)
+    begin = _local_midnight(day, tz)
     stmt = select(TimeEntry).where(
         TimeEntry.user_id == user.id,
         TimeEntry.project_id == project.id,
         TimeEntry.started_at >= begin,
-        TimeEntry.started_at < begin + timedelta(days=1),
+        TimeEntry.started_at < _local_midnight(day + timedelta(days=1), tz),
     )
     entries = list(db.scalars(stmt))
     # Invoiced grid entries are as fixed as tracked ones.
@@ -94,7 +103,7 @@ def set_cell(db: Session, user: User, project: Project, day: date, seconds: int)
         db.delete(entry)
     remainder = seconds - fixed
     if remainder > 0:
-        start = begin + timedelta(hours=9)
+        start = datetime.combine(day, time(9), tzinfo=tz)
         db.add(
             TimeEntry(
                 user_id=user.id,

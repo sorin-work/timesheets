@@ -74,3 +74,24 @@ def test_clearing_a_cell_removes_the_grid_entry(client, auth, project):
     cell(client, auth, project["id"], "2025-12-09", 60)
     r = cell(client, auth, project["id"], "2025-12-09", 0)
     assert r.json()["rows"] == []
+
+
+def test_days_follow_the_users_time_zone(client, auth, project):
+    client.patch("/api/settings", json={"timezone": "Europe/Bucharest"}, headers=auth)
+    # 01:30 on Tuesday in Bucharest (UTC+3 in summer)
+    log(client, auth, project["id"], "2026-04-20T22:30:00Z", "2026-04-20T23:30:00Z")
+    # 00:30 on Monday 27 April in Bucharest: next week, even though it is Sunday in UTC
+    log(client, auth, project["id"], "2026-04-26T21:30:00Z", "2026-04-26T22:00:00Z")
+
+    sheet = client.get("/api/timesheet?week=2026-04-20", headers=auth).json()
+    assert website_row(sheet)["seconds"] == [0, 3600, 0, 0, 0, 0, 0]
+    next_week = client.get("/api/timesheet?week=2026-04-27", headers=auth).json()
+    assert website_row(next_week)["seconds"][0] == 1800
+
+
+def test_grid_entries_are_created_on_the_local_day(client, auth, project):
+    client.patch("/api/settings", json={"timezone": "Pacific/Auckland"}, headers=auth)
+    r = cell(client, auth, project["id"], "2026-04-21", 60)
+    assert website_row(r.json())["seconds"][1] == 3600
+    created = client.get("/api/entries", headers=auth).json()["items"][0]
+    assert created["started_at"] == "2026-04-20T21:00:00Z"  # 09:00 in Auckland
