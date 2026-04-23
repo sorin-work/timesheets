@@ -7,6 +7,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import EntryForm from '@/components/EntryForm.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
+import { groupByDay } from '@/lib/entries'
 import { formatDate, formatDuration, formatTime } from '@/lib/format'
 import { useProjects } from '@/stores/projects'
 import { useTimer } from '@/stores/timer'
@@ -79,20 +80,7 @@ const projectOptions = computed(() =>
     : projects.value.filter((p) => p.client_id === filters.client_id),
 )
 
-const days = computed(() => {
-  const groups: { day: string; entries: Entry[]; total: number }[] = []
-  for (const entry of page.value?.items ?? []) {
-    const day = entry.started_at.slice(0, 10)
-    let group = groups[groups.length - 1]
-    if (!group || group.day !== day) {
-      group = { day, entries: [], total: 0 }
-      groups.push(group)
-    }
-    group.entries.push(entry)
-    group.total += entry.duration_seconds
-  }
-  return groups
-})
+const days = computed(() => groupByDay(page.value?.items ?? []))
 
 async function load() {
   loading.value = true
