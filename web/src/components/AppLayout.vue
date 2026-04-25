@@ -3,11 +3,17 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import TimerBar from '@/components/TimerBar.vue'
+import { setTheme, storedTheme, type Theme } from '@/lib/theme'
 import { useAuth } from '@/stores/auth'
 
 const auth = useAuth()
 const router = useRouter()
 const menuOpen = ref(false)
+const theme = ref<Theme>(storedTheme())
+
+function changeTheme() {
+  setTheme(theme.value)
+}
 
 const nav = [
   { to: '/', label: 'Dashboard' },
@@ -53,6 +59,11 @@ function logout() {
       </nav>
       <div class="account">
         <span class="muted">{{ auth.state.user?.name }}</span>
+        <select v-model="theme" aria-label="Theme" @change="changeTheme">
+          <option value="system">System theme</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
         <button type="button" @click="logout">Sign out</button>
       </div>
     </aside>
@@ -122,6 +133,12 @@ nav {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0 0.5rem;
+}
+
+.account select {
+  background: #1f2937;
+  color: inherit;
+  border-color: #374151;
 }
 
 .account button {

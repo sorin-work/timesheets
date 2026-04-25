@@ -10,6 +10,10 @@
   --success: #16a34a;
   --warning: #d97706;
   --radius: 8px;
+  --subtle: #f1f5f9;
+  --hover: #f8fafc;
+
+  color-scheme: light;
 
   font-family:
     Inter,
@@ -29,6 +33,24 @@
 
 body {
   margin: 0;
+  background: var(--bg);
+}
+
+:root[data-theme='dark'] {
+  --bg: #0b1120;
+  --surface: #111827;
+  --border: #1f2937;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --primary: #818cf8;
+  --primary-hover: #6366f1;
+  --danger: #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --subtle: #1e293b;
+  --hover: #172033;
+
+  color-scheme: dark;
 }
 
 h1 {
@@ -159,7 +181,7 @@ button.danger {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
-  background: #f1f5f9;
+  background: var(--subtle);
 }
 
 .table tr:last-child td {
@@ -219,8 +241,8 @@ label.inline {
   letter-spacing: 0.04em;
   padding: 0.0625rem 0.5rem;
   border-radius: 999px;
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--subtle);
+  color: var(--muted);
   vertical-align: middle;
 }
 
