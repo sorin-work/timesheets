@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import { api, ApiError } from '@/api/client'
 import type { Client, Invoice, UnbilledSummary } from '@/api/types'
+import TaxLinesEditor from '@/components/TaxLinesEditor.vue'
 import { formatDuration, formatMoney, isoDate } from '@/lib/format'
 
 const router = useRouter()
@@ -47,10 +48,6 @@ async function loadSummary() {
   } catch (e) {
     error.value = (e as Error).message
   }
-}
-
-function addTax() {
-  form.taxes.push({ name: 'VAT', rate: '19' })
 }
 
 async function submit() {
@@ -161,16 +158,7 @@ onMounted(async () => {
         </label>
       </div>
 
-      <fieldset class="taxes">
-        <legend>Taxes</legend>
-        <div v-for="(tax, i) in form.taxes" :key="i" class="tax-row">
-          <input v-model="tax.name" aria-label="Tax name" maxlength="60" required />
-          <input v-model="tax.rate" aria-label="Rate %" inputmode="decimal" required />
-          <span>%</span>
-          <button type="button" @click="form.taxes.splice(i, 1)">Remove</button>
-        </div>
-        <button type="button" :disabled="form.taxes.length >= 5" @click="addTax">Add tax</button>
-      </fieldset>
+      <TaxLinesEditor v-model="form.taxes" />
 
       <label>
         Notes
@@ -195,25 +183,6 @@ onMounted(async () => {
 <style scoped>
 .new-invoice {
   max-width: 44rem;
-}
-
-.taxes {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  align-items: flex-start;
-}
-
-.tax-row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.tax-row input:last-of-type {
-  width: 5rem;
 }
 
 .estimate {

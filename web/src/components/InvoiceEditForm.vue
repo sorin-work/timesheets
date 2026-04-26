@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 
 import { api, ApiError } from '@/api/client'
 import type { Invoice } from '@/api/types'
+import TaxLinesEditor from '@/components/TaxLinesEditor.vue'
 
 const props = defineProps<{ invoice: Invoice }>()
 const emit = defineEmits<{ saved: [invoice: Invoice]; cancel: [] }>()
@@ -42,22 +43,7 @@ async function submit() {
         <input v-model="form.due_date" type="date" required />
       </label>
     </div>
-    <fieldset class="taxes">
-      <legend>Taxes</legend>
-      <div v-for="(tax, i) in form.taxes" :key="i" class="tax-row">
-        <input v-model="tax.name" aria-label="Tax name" maxlength="60" required />
-        <input v-model="tax.rate" aria-label="Rate %" inputmode="decimal" required />
-        <span>%</span>
-        <button type="button" @click="form.taxes.splice(i, 1)">Remove</button>
-      </div>
-      <button
-        type="button"
-        :disabled="form.taxes.length >= 5"
-        @click="form.taxes.push({ name: 'VAT', rate: '19' })"
-      >
-        Add tax
-      </button>
-    </fieldset>
+    <TaxLinesEditor v-model="form.taxes" />
     <label>
       Notes
       <textarea v-model="form.notes" rows="4" />
@@ -70,23 +56,4 @@ async function submit() {
   </form>
 </template>
 
-<style scoped>
-.taxes {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  align-items: flex-start;
-}
-
-.tax-row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.tax-row input:last-of-type {
-  width: 5rem;
-}
-</style>
+<style scoped></style>
