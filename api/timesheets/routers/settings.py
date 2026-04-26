@@ -19,7 +19,11 @@ def update_settings(body: SettingsUpdate, db: DbSession, user: CurrentUser) -> U
     for field, value in body.model_dump(exclude_unset=True).items():
         if value is None and field in REQUIRED:
             continue
-        setattr(user, field, value.value if field == "rounding" else value)
+        if field == "rounding":
+            value = value.value
+        elif field == "default_taxes":
+            value = [{"name": t["name"].strip(), "rate": str(t["rate"])} for t in value or []]
+        setattr(user, field, value)
     db.commit()
     db.refresh(user)
     return user

@@ -109,7 +109,9 @@ def generate(body: GenerateIn, db: DbSession, user: CurrentUser) -> Invoice:
     client = get_owned(db, Client, body.client_id, user, "Client")
     options = GenerateOptions(
         **body.model_dump(exclude={"taxes"}),
-        taxes=[(tax.name.strip(), tax.rate) for tax in body.taxes],
+        taxes=[(tax.name.strip(), tax.rate) for tax in body.taxes]
+        if body.taxes is not None
+        else [(t["name"], Decimal(t["rate"])) for t in user.default_taxes],
     )
     return generate_invoice(db, user, client, options)
 

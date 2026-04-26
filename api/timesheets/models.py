@@ -16,6 +16,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from timesheets import clock
@@ -43,6 +44,10 @@ class User(TimestampMixin, Base):
     tax_id: Mapped[str | None] = mapped_column(String(64))
     invoice_prefix: Mapped[str] = mapped_column(String(16), default="INV-", server_default="INV-")
     payment_terms_days: Mapped[int] = mapped_column(Integer, default=14, server_default="14")
+    # [{"name": "VAT", "rate": "19"}], used when an invoice is generated without taxes
+    default_taxes: Mapped[list[dict[str, str]]] = mapped_column(
+        JSONB, default=list, server_default=text("'[]'::jsonb")
+    )
 
 
 class Client(TimestampMixin, Base):

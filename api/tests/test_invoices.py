@@ -366,3 +366,17 @@ def test_whole_hours_are_billed_as_whole_hours_with_rounding(client, auth, bille
     invoice = generate(client, auth, billed_client["client"]["id"]).json()
     assert invoice["lines"][0]["quantity"] == "2.00"
     assert invoice["subtotal"] == "200.00"
+
+
+def test_default_taxes_from_settings(client, auth, billed_client):
+    r = client.patch(
+        "/api/settings", json={"default_taxes": [{"name": " VAT ", "rate": "20"}]}, headers=auth
+    )
+    assert r.json()["default_taxes"] == [{"name": "VAT", "rate": "20"}]
+    site = billed_client["site"]["id"]
+    log(client, auth, site, "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    log(client, auth, site, "2026-01-06T09:00:00Z", "2026-01-06T10:00:00Z")
+    with_defaults = generate(client, auth, billed_client["client"]["id"], period_end="2026-01-05")
+    assert [(t["name"], t["amount"]) for t in with_defaults.json()["taxes"]] == [("VAT", "20.00")]
+    without = generate(client, auth, billed_client["client"]["id"], taxes=[])
+    assert without.json()["taxes"] == []

@@ -21,7 +21,8 @@ class GenerateIn(BaseModel):
     issue_date: date | None = None
     due_days: Annotated[int, Field(ge=0, le=365)] | None = None
     notes: OptionalText = None
-    taxes: Annotated[list[TaxIn], Field(max_length=5)] = []
+    # None means "use the default taxes from settings"; [] means no taxes.
+    taxes: Annotated[list[TaxIn], Field(max_length=5)] | None = None
 
 
 class InvoiceLineOut(BaseModel):
