@@ -30,7 +30,7 @@ const level = computed(() => (percent.value >= 100 ? 'over' : percent.value >= 8
 .track {
   flex: 1;
   height: 0.375rem;
-  background: #e2e8f0;
+  background: var(--subtle);
   border-radius: 999px;
   overflow: hidden;
 }

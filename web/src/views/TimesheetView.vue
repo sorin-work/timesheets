@@ -193,7 +193,7 @@ onMounted(() => {
 
 .grid tfoot td {
   font-weight: 600;
-  background: #f1f5f9;
+  background: var(--subtle);
 }
 
 .strong {

@@ -268,7 +268,7 @@ onMounted(async () => {
 }
 
 .clickable:hover td {
-  background: #f8fafc;
+  background: var(--hover);
 }
 
 .times {

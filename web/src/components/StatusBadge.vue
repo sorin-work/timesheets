@@ -38,3 +38,25 @@ defineProps<{ status: InvoiceStatus }>()
   color: #b91c1c;
 }
 </style>
+
+<style>
+:root[data-theme='dark'] .status.draft {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .status.sent {
+  background: #1e3a8a;
+  color: #bfdbfe;
+}
+
+:root[data-theme='dark'] .status.paid {
+  background: #14532d;
+  color: #bbf7d0;
+}
+
+:root[data-theme='dark'] .status.overdue {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+</style>
