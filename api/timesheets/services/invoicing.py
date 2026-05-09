@@ -123,7 +123,8 @@ def _build_lines(entries: list[TimeEntry], rounding: str, group_by: str) -> list
 
 
 def tax_amount(subtotal: Decimal, rate: Decimal) -> Decimal:
-    return round(subtotal * rate / 100, 2)
+    # Not round(): on Decimals it rounds half to even, so 4.545 became 4.54.
+    return to_money(subtotal * rate / 100)
 
 
 def recalculate(invoice: Invoice) -> None:

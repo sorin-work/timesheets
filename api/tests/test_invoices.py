@@ -380,3 +380,15 @@ def test_default_taxes_from_settings(client, auth, billed_client):
     assert [(t["name"], t["amount"]) for t in with_defaults.json()["taxes"]] == [("VAT", "20.00")]
     without = generate(client, auth, billed_client["client"]["id"], taxes=[])
     assert without.json()["taxes"] == []
+
+
+def test_tax_on_an_exact_half_cent_rounds_up(client, auth, billed_client):
+    site = billed_client["site"]["id"]
+    log(client, auth, site, "2026-01-05T09:00:00Z", "2026-01-05T09:30:18Z")  # 0.51 h -> 51.00
+    client.patch(f"/api/projects/{site}", json={"hourly_rate": "99.02"}, headers=auth)
+    invoice = generate(
+        client, auth, billed_client["client"]["id"], taxes=[{"name": "VAT", "rate": "9"}]
+    ).json()
+    assert invoice["subtotal"] == "50.50"
+    assert invoice["taxes"][0]["amount"] == "4.55"
+    assert invoice["total"] == "55.05"

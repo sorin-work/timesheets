@@ -49,3 +49,13 @@ def test_tax_amount():
     assert tax_amount(Decimal("300.00"), Decimal("19")) == Decimal("57.00")
     assert tax_amount(Decimal("99.99"), Decimal("21")) == Decimal("21.00")
     assert tax_amount(Decimal("0.00"), Decimal("19")) == Decimal("0.00")
+
+
+def test_tax_amount_rounds_half_cents_up():
+    from decimal import Decimal
+
+    from timesheets.services.invoicing import tax_amount
+
+    assert tax_amount(Decimal("50.50"), Decimal("9")) == Decimal("4.55")
+    assert tax_amount(Decimal("12.50"), Decimal("5")) == Decimal("0.63")
+    assert tax_amount(Decimal("102.50"), Decimal("19")) == Decimal("19.48")
