@@ -25,6 +25,7 @@ export interface Settings {
   tax_id: string | null
   invoice_prefix: string
   payment_terms_days: number
+  default_taxes: { name: string; rate: string }[]
 }
 
 export interface Client {

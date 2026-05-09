@@ -4,6 +4,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { api, ApiError } from '@/api/client'
 import type { Rounding, Settings } from '@/api/types'
 import PasswordForm from '@/components/PasswordForm.vue'
+import TaxLinesEditor from '@/components/TaxLinesEditor.vue'
 import { useToasts } from '@/stores/toasts'
 
 const toast = useToasts()
@@ -26,6 +27,7 @@ const form = reactive({
   tax_id: '',
   invoice_prefix: 'INV-',
   payment_terms_days: 14,
+  default_taxes: [] as { name: string; rate: string }[],
 })
 
 const timezones: string[] =
@@ -44,6 +46,7 @@ function fill(settings: Settings) {
     business_name: settings.business_name ?? '',
     business_address: settings.business_address ?? '',
     tax_id: settings.tax_id ?? '',
+    default_taxes: settings.default_taxes.map((t) => ({ ...t })),
   })
 }
 
@@ -141,6 +144,10 @@ onMounted(async () => {
             Payment terms (days)
             <input v-model.number="form.payment_terms_days" type="number" min="0" max="365" />
           </label>
+        </div>
+        <div>
+          <TaxLinesEditor v-model="form.default_taxes" />
+          <small class="muted">Added to new invoices; you can still change them per invoice.</small>
         </div>
       </fieldset>
 

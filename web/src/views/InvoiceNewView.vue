@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { api, ApiError } from '@/api/client'
-import type { Client, Invoice, UnbilledSummary } from '@/api/types'
+import type { Client, Invoice, Settings, UnbilledSummary } from '@/api/types'
 import TaxLinesEditor from '@/components/TaxLinesEditor.vue'
 import { formatDuration, formatMoney, isoDate } from '@/lib/format'
 
@@ -68,7 +68,12 @@ async function submit() {
 watch(() => [form.client_id, form.period_start, form.period_end], loadSummary)
 
 onMounted(async () => {
-  clients.value = await api.get<Client[]>('/clients')
+  const [list, settings] = await Promise.all([
+    api.get<Client[]>('/clients'),
+    api.get<Settings>('/settings'),
+  ])
+  clients.value = list
+  form.taxes = settings.default_taxes.map((t) => ({ ...t }))
   if (clients.value.length) form.client_id = clients.value[0]!.id
 })
 </script>
