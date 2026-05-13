@@ -392,3 +392,10 @@ def test_tax_on_an_exact_half_cent_rounds_up(client, auth, billed_client):
     assert invoice["subtotal"] == "50.50"
     assert invoice["taxes"][0]["amount"] == "4.55"
     assert invoice["total"] == "55.05"
+
+
+def test_other_accounts_cannot_download_the_pdf(client, auth, other_auth, draft):
+    r = client.get(f"/api/invoices/{draft['id']}/pdf", headers=other_auth)
+    assert r.status_code == 404
+    token = other_auth["Authorization"].split()[1]
+    assert client.get(f"/api/invoices/{draft['id']}/pdf?token={token}").status_code == 404

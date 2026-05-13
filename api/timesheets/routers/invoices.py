@@ -8,7 +8,7 @@ from sqlalchemy.orm import joinedload
 
 from timesheets import clock
 from timesheets.deps import CurrentUser, DbSession, DownloadUser
-from timesheets.errors import Conflict, NotFound, ValidationFailed
+from timesheets.errors import Conflict, ValidationFailed
 from timesheets.models import Client, Invoice, InvoiceTax
 from timesheets.routers.common import get_owned
 from timesheets.schemas.invoices import (
@@ -200,9 +200,7 @@ def delete_invoice(invoice_id: int, db: DbSession, user: CurrentUser) -> Respons
 
 @router.get("/{invoice_id}/pdf", response_class=Response)
 def invoice_pdf(invoice_id: int, db: DbSession, user: DownloadUser) -> Response:
-    invoice = db.get(Invoice, invoice_id)
-    if invoice is None:
-        raise NotFound("Invoice not found")
+    invoice = get_owned(db, Invoice, invoice_id, user, "Invoice")
     filename = f"{invoice.number}.pdf".replace("/", "-")
     return Response(
         render_invoice_pdf(invoice, user),
