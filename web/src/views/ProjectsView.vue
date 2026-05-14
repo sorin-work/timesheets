@@ -7,6 +7,7 @@ import BudgetBar from '@/components/BudgetBar.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import ProjectForm from '@/components/ProjectForm.vue'
+import SkeletonRows from '@/components/SkeletonRows.vue'
 import { formatMoney } from '@/lib/format'
 import { useProjects } from '@/stores/projects'
 import { useToasts } from '@/stores/toasts'
@@ -89,7 +90,7 @@ onMounted(load)
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
-    <p v-else-if="loading" class="muted">Loading…</p>
+    <SkeletonRows v-else-if="loading" />
     <EmptyState
       v-else-if="!clients.length"
       title="Add a client first"

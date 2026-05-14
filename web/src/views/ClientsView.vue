@@ -6,6 +6,7 @@ import type { Client } from '@/api/types'
 import ClientForm from '@/components/ClientForm.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
+import SkeletonRows from '@/components/SkeletonRows.vue'
 import { formatMoney } from '@/lib/format'
 import { useToasts } from '@/stores/toasts'
 
@@ -70,7 +71,7 @@ onMounted(load)
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
-    <p v-else-if="loading" class="muted">Loading…</p>
+    <SkeletonRows v-else-if="loading" />
     <EmptyState
       v-else-if="!clients.length"
       title="No clients yet"

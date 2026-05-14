@@ -6,6 +6,7 @@ import { api } from '@/api/client'
 import type { InvoiceStatus, InvoiceSummary } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import SkeletonRows from '@/components/SkeletonRows.vue'
 import { formatDate, formatMoney } from '@/lib/format'
 
 const route = useRoute()
@@ -66,7 +67,7 @@ onMounted(load)
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
-    <p v-else-if="loading" class="muted">Loading…</p>
+    <SkeletonRows v-else-if="loading" />
     <EmptyState
       v-else-if="!invoices.length"
       :title="status ? `No ${status} invoices` : 'No invoices yet'"

@@ -7,6 +7,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import EntryForm from '@/components/EntryForm.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
+import SkeletonRows from '@/components/SkeletonRows.vue'
 import { groupByDay } from '@/lib/entries'
 import { formatDate, formatDuration, formatTime } from '@/lib/format'
 import { useProjects } from '@/stores/projects'
@@ -160,7 +161,7 @@ onMounted(async () => {
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
-    <p v-else-if="loading && !page" class="muted">Loading…</p>
+    <SkeletonRows v-else-if="loading && !page" />
     <EmptyState
       v-else-if="page && !page.items.length"
       title="No time entries"
