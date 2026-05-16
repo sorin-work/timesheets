@@ -1,12 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from timesheets.config import get_settings
 from timesheets.deps import CurrentUser, DbSession
 from timesheets.errors import ValidationFailed
-from timesheets.models import User
+from timesheets.models import Invoice, User
 from timesheets.ratelimit import limit_auth
-from timesheets.schemas.auth import LoginIn, PasswordChangeIn, SignupIn, TokenOut, UserOut
+from timesheets.schemas.auth import (
+    DeleteAccountIn,
+    LoginIn,
+    PasswordChangeIn,
+    SignupIn,
+    TokenOut,
+    UserOut,
+)
 from timesheets.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -54,5 +61,19 @@ def change_password(body: PasswordChangeIn, db: DbSession, user: CurrentUser) ->
             [{"field": "current_password", "message": "Current password is incorrect"}],
         )
     user.password_hash = hash_password(body.new_password)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(body: DeleteAccountIn, db: DbSession, user: CurrentUser) -> Response:
+    """Delete the account and everything in it. Asks for the password again."""
+    if not verify_password(body.password, user.password_hash):
+        raise ValidationFailed(
+            "Password is incorrect", [{"field": "password", "message": "Password is incorrect"}]
+        )
+    # Invoices first: they reference clients, which do not cascade into them.
+    db.execute(delete(Invoice).where(Invoice.user_id == user.id))
+    db.delete(user)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -103,3 +103,36 @@ def test_change_password_checks_the_current_one(client, auth):
         headers=auth,
     )
     assert r.status_code == 422
+
+
+def test_delete_account_removes_everything(client, auth, project, session):
+    from sqlalchemy import func, select
+
+    from timesheets.models import Client, Invoice, TimeEntry, User
+
+    client.post(
+        "/api/entries",
+        json={
+            "project_id": project["id"],
+            "started_at": "2026-05-04T09:00:00Z",
+            "ended_at": "2026-05-04T10:00:00Z",
+        },
+        headers=auth,
+    )
+    client.post(
+        "/api/invoices/generate",
+        json={
+            "client_id": project["client_id"],
+            "period_start": "2026-05-01",
+            "period_end": "2026-05-31",
+        },
+        headers=auth,
+    )
+    r = client.request("DELETE", "/api/auth/me", json={"password": "wrong"}, headers=auth)
+    assert r.status_code == 422
+
+    r = client.request("DELETE", "/api/auth/me", json={"password": "password123"}, headers=auth)
+    assert r.status_code == 204
+    assert client.get("/api/auth/me", headers=auth).status_code == 401
+    for model in (User, Client, TimeEntry, Invoice):
+        assert session.scalar(select(func.count()).select_from(model)) == 0
