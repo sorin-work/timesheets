@@ -4,7 +4,8 @@ from fastapi import APIRouter, Response, status
 from sqlalchemy import select
 
 from timesheets.deps import CurrentUser, DbSession
-from timesheets.models import Client
+from timesheets.errors import Conflict
+from timesheets.models import Client, Invoice
 from timesheets.routers.common import get_owned
 from timesheets.schemas.clients import ClientIn, ClientOut, ClientUpdate
 
@@ -48,6 +49,8 @@ def update_client(client_id: int, body: ClientUpdate, db: DbSession, user: Curre
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_client(client_id: int, db: DbSession, user: CurrentUser) -> Response:
     client = get_owned(db, Client, client_id, user, "Client")
+    if db.scalar(select(Invoice.id).where(Invoice.client_id == client.id).limit(1)):
+        raise Conflict("This client has invoices; archive it instead")
     db.delete(client)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

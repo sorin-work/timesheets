@@ -79,3 +79,27 @@ def test_delete_client(client, auth):
 
 def test_clients_require_auth(client):
     assert client.get("/api/clients").status_code == 401
+
+
+def test_clients_with_invoices_cannot_be_deleted(client, auth, project):
+    client.post(
+        "/api/entries",
+        json={
+            "project_id": project["id"],
+            "started_at": "2026-05-04T09:00:00Z",
+            "ended_at": "2026-05-04T10:00:00Z",
+        },
+        headers=auth,
+    )
+    client.post(
+        "/api/invoices/generate",
+        json={
+            "client_id": project["client_id"],
+            "period_start": "2026-05-01",
+            "period_end": "2026-05-31",
+        },
+        headers=auth,
+    )
+    r = client.delete(f"/api/clients/{project['client_id']}", headers=auth)
+    assert r.status_code == 409
+    assert "archive" in r.json()["error"]["message"]
