@@ -105,6 +105,13 @@ class TimeEntry(TimestampMixin, Base):
     __tablename__ = "time_entries"
     __table_args__ = (
         Index("ix_time_entries_user_started", "user_id", "started_at"),
+        # Unbilled time lookups (dashboard, invoice preview and generation)
+        Index(
+            "ix_time_entries_unbilled",
+            "user_id",
+            "project_id",
+            postgresql_where=text("invoice_id IS NULL AND billable"),
+        ),
         # At most one running timer per user.
         Index(
             "uq_time_entries_one_running",
@@ -160,7 +167,10 @@ class TimeEntry(TimestampMixin, Base):
 
 class Invoice(TimestampMixin, Base):
     __tablename__ = "invoices"
-    __table_args__ = (UniqueConstraint("user_id", "number", name="uq_invoices_user_number"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "number", name="uq_invoices_user_number"),
+        Index("ix_invoices_user_status", "user_id", "status"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
