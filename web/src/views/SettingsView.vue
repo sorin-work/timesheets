@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 
 import { api, ApiError } from '@/api/client'
 import type { Rounding, Settings } from '@/api/types'
+import DeleteAccount from '@/components/DeleteAccount.vue'
 import PasswordForm from '@/components/PasswordForm.vue'
 import TaxLinesEditor from '@/components/TaxLinesEditor.vue'
 import { useToasts } from '@/stores/toasts'
@@ -159,6 +160,7 @@ onMounted(async () => {
     </form>
 
     <PasswordForm class="password" />
+    <DeleteAccount class="password" />
   </section>
 </template>
 
