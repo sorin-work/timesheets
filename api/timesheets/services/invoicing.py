@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from timesheets import clock
@@ -50,6 +51,7 @@ def unbilled_entries(
     period_start: date,
     period_end: date,
     project_ids: list[int] | None = None,
+    lock: bool = False,
 ) -> list[TimeEntry]:
     begin = datetime.combine(period_start, time.min, tzinfo=UTC)
     end = datetime.combine(period_end + timedelta(days=1), time.min, tzinfo=UTC)
@@ -70,6 +72,9 @@ def unbilled_entries(
     )
     if project_ids:
         stmt = stmt.where(TimeEntry.project_id.in_(project_ids))
+    if lock:
+        # Two generate requests for the same time must not both bill it.
+        stmt = stmt.with_for_update(of=TimeEntry)
     return list(db.scalars(stmt))
 
 
@@ -140,7 +145,13 @@ def generate_invoice(db: Session, user: User, client: Client, options: GenerateO
     if options.period_end < options.period_start:
         raise ValidationFailed("period_end must not be before period_start")
     entries = unbilled_entries(
-        db, user, client.id, options.period_start, options.period_end, options.project_ids
+        db,
+        user,
+        client.id,
+        options.period_start,
+        options.period_end,
+        options.project_ids,
+        lock=True,
     )
     if not entries:
         raise ValidationFailed("There is no unbilled billable time for this client in the period")
@@ -168,7 +179,11 @@ def generate_invoice(db: Session, user: User, client: Client, options: GenerateO
     db.flush()
     for entry in entries:
         entry.invoice_id = invoice.id
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:  # another invoice took the same number meanwhile
+        db.rollback()
+        raise Conflict("Another invoice was created at the same time, please retry") from exc
     db.refresh(invoice)
     return invoice
 

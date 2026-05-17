@@ -17,6 +17,7 @@ const clients = ref<Client[]>([])
 const summary = ref<UnbilledSummary | null>(null)
 const selected = ref<number[]>([])
 const error = ref('')
+const submitting = ref(false)
 
 const form = reactive({
   client_id: 0,
@@ -51,6 +52,8 @@ async function loadSummary() {
 }
 
 async function submit() {
+  if (submitting.value) return
+  submitting.value = true
   error.value = ''
   try {
     const invoice = await api.post<Invoice>('/invoices/generate', {
@@ -62,6 +65,7 @@ async function submit() {
     await router.push(`/invoices/${invoice.id}`)
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : 'Could not create the invoice'
+    submitting.value = false
   }
 }
 
@@ -177,8 +181,8 @@ onMounted(async () => {
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <div class="actions">
         <RouterLink class="button" to="/invoices">Cancel</RouterLink>
-        <button class="primary" type="submit" :disabled="!selected.length">
-          Create draft invoice
+        <button class="primary" type="submit" :disabled="!selected.length || submitting">
+          {{ submitting ? 'Creating…' : 'Create draft invoice' }}
         </button>
       </div>
     </form>

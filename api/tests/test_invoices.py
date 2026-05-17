@@ -399,3 +399,24 @@ def test_other_accounts_cannot_download_the_pdf(client, auth, other_auth, draft)
     assert r.status_code == 404
     token = other_auth["Authorization"].split()[1]
     assert client.get(f"/api/invoices/{draft['id']}/pdf?token={token}").status_code == 404
+
+
+def test_generating_twice_in_parallel_bills_time_once(client, auth, billed_client):
+    from concurrent.futures import ThreadPoolExecutor
+
+    for day in range(5, 10):
+        log(
+            client,
+            auth,
+            billed_client["site"]["id"],
+            f"2026-01-0{day}T09:00:00Z",
+            f"2026-01-0{day}T10:00:00Z",
+        )
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(
+            pool.map(lambda _: generate(client, auth, billed_client["client"]["id"]), range(2))
+        )
+    created = [r.json() for r in results if r.status_code == 201]
+    assert len(created) == 1
+    assert created[0]["entry_count"] == 5
+    assert sorted(r.status_code for r in results)[1] in (409, 422)
