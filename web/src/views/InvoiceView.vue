@@ -60,8 +60,6 @@ async function remove() {
   }
 }
 
-const notesHtml = computed(() => (invoice.value?.notes ?? '').replace(/\n/g, '<br>'))
-
 function money(amount: string) {
   return formatMoney(amount, invoice.value!.currency)
 }
@@ -177,8 +175,7 @@ onMounted(async () => {
           </tfoot>
         </table>
 
-        <!-- eslint-disable-next-line vue/no-v-html -->
-        <div v-if="invoice.notes" class="notes" v-html="notesHtml" />
+        <div v-if="invoice.notes" class="notes">{{ invoice.notes }}</div>
       </article>
 
       <ModalDialog v-if="editing" title="Edit draft" @close="editing = false">
@@ -263,6 +260,7 @@ h1 {
 }
 
 .notes {
+  white-space: pre-line;
   margin-top: 2rem;
   color: var(--muted);
 }
