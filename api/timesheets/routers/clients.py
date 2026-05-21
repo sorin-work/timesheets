@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from timesheets.deps import CurrentUser, DbSession
 from timesheets.errors import Conflict
@@ -13,10 +13,15 @@ router = APIRouter(prefix="/api/clients", tags=["clients"])
 
 
 @router.get("", response_model=list[ClientOut])
-def list_clients(db: DbSession, user: CurrentUser, include_archived: bool = False) -> list[Client]:
-    stmt = select(Client).where(Client.user_id == user.id).order_by(Client.name)
+def list_clients(
+    db: DbSession, user: CurrentUser, include_archived: bool = False, q: str | None = None
+) -> list[Client]:
+    stmt = select(Client).where(Client.user_id == user.id).order_by(func.lower(Client.name))
     if not include_archived:
         stmt = stmt.where(Client.archived_at.is_(None))
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        stmt = stmt.where(Client.name.ilike(pattern) | Client.email.ilike(pattern))
     return list(db.scalars(stmt))
 
 

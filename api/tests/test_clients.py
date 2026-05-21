@@ -103,3 +103,20 @@ def test_clients_with_invoices_cannot_be_deleted(client, auth, project):
     r = client.delete(f"/api/clients/{project['client_id']}", headers=auth)
     assert r.status_code == 409
     assert "archive" in r.json()["error"]["message"]
+
+
+def test_search_clients_by_name_or_email(client, auth):
+    for name, email in (
+        ("Ärzte Praxis", "info@praxis.example"),
+        ("bolt", None),
+        ("Acme", "a@acme.example"),
+    ):
+        client.post("/api/clients", json={"name": name, "email": email}, headers=auth)
+
+    def names(q):
+        return [c["name"] for c in client.get("/api/clients", params={"q": q}, headers=auth).json()]
+
+    assert names("") == ["Acme", "bolt", "Ärzte Praxis"]
+    assert names("ÄRZTE") == ["Ärzte Praxis"]
+    assert names("acme.example") == ["Acme"]
+    assert names("zzz") == []
