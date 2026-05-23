@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 
 import { api } from '@/api/client'
 import type { Client } from '@/api/types'
@@ -18,12 +18,16 @@ const error = ref('')
 const editing = ref<Client | null>(null)
 const creating = ref(false)
 const showArchived = ref(false)
+const search = ref('')
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    clients.value = await api.get<Client[]>('/clients', { include_archived: showArchived.value })
+    clients.value = await api.get<Client[]>('/clients', {
+      include_archived: showArchived.value,
+      q: search.value.trim(),
+    })
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -54,6 +58,12 @@ async function toggleArchived(client: Client) {
   }
 }
 
+let debounce: ReturnType<typeof setTimeout> | undefined
+watch(search, () => {
+  clearTimeout(debounce)
+  debounce = setTimeout(load, 250)
+})
+
 onMounted(load)
 </script>
 
@@ -62,6 +72,7 @@ onMounted(load)
     <div class="page-header">
       <h1>Clients</h1>
       <div class="header-actions">
+        <input v-model="search" type="search" placeholder="Search clients" aria-label="Search" />
         <label class="inline">
           <input v-model="showArchived" type="checkbox" @change="load" />
           Show archived
@@ -72,6 +83,10 @@ onMounted(load)
 
     <p v-if="error" class="error">{{ error }}</p>
     <SkeletonRows v-else-if="loading" />
+    <EmptyState
+      v-else-if="!clients.length && search.trim()"
+      :title="`No clients match “${search.trim()}”`"
+    />
     <EmptyState
       v-else-if="!clients.length"
       title="No clients yet"
