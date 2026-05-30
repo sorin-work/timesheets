@@ -420,3 +420,21 @@ def test_generating_twice_in_parallel_bills_time_once(client, auth, billed_clien
     assert len(created) == 1
     assert created[0]["entry_count"] == 5
     assert sorted(r.status_code for r in results)[1] in (409, 422)
+
+
+def test_invoice_numbers_sort_numerically(client, auth, billed_client):
+    site = billed_client["site"]["id"]
+    for day in range(1, 12):
+        log(client, auth, site, f"2026-01-{day:02d}T09:00:00Z", f"2026-01-{day:02d}T10:00:00Z")
+        generate(
+            client,
+            auth,
+            billed_client["client"]["id"],
+            period_start=f"2026-01-{day:02d}",
+            period_end=f"2026-01-{day:02d}",
+        )
+    numbers = [i["number"] for i in client.get("/api/invoices", headers=auth).json()]
+    assert numbers[:3] == ["INV-11", "INV-10", "INV-9"]
+    assert numbers[-1] == "INV-1"
+    ascending = client.get("/api/invoices?sort=number&order=asc", headers=auth).json()
+    assert [i["number"] for i in ascending][-2:] == ["INV-10", "INV-11"]

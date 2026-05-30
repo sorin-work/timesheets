@@ -34,7 +34,8 @@ router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 
 
 SORT_COLUMNS = {
-    "number": Invoice.number,
+    # Not Invoice.number: as text "INV-10" sorts before "INV-9".
+    "number": Invoice.sequence,
     "issue_date": Invoice.issue_date,
     "due_date": Invoice.due_date,
     "total": Invoice.total,
