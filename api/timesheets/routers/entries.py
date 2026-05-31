@@ -10,10 +10,17 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import joinedload
 
 from timesheets.deps import CurrentUser, DbSession
-from timesheets.errors import Conflict, ValidationFailed
+from timesheets.errors import Conflict, NotFound, ValidationFailed
 from timesheets.models import Project, TimeEntry, User
 from timesheets.routers.common import get_owned
-from timesheets.schemas.entries import EntryIn, EntryOut, EntryPage, EntryUpdate
+from timesheets.schemas.entries import (
+    BulkIn,
+    BulkOut,
+    EntryIn,
+    EntryOut,
+    EntryPage,
+    EntryUpdate,
+)
 
 router = APIRouter(prefix="/api/entries", tags=["entries"])
 
@@ -129,6 +136,31 @@ def export_entries(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="time-entries.csv"'},
     )
+
+
+@router.post("/bulk", response_model=BulkOut)
+def bulk_update(body: BulkIn, db: DbSession, user: CurrentUser) -> BulkOut:
+    """Mark several entries billable or not, or delete them, all or nothing."""
+    entries = list(
+        db.scalars(
+            select(TimeEntry).where(TimeEntry.user_id == user.id, TimeEntry.id.in_(body.ids))
+        )
+    )
+    if len(entries) != len(set(body.ids)):
+        raise NotFound("Some entries were not found")
+    if any(e.invoice_id is not None for e in entries):
+        raise Conflict("Some of these entries are on an invoice and cannot be changed")
+    if any(e.ended_at is None for e in entries):
+        raise Conflict("Stop the running timer first")
+    if body.action == "delete":
+        for entry in entries:
+            db.delete(entry)
+        db.commit()
+        return BulkOut(updated=0, deleted=len(entries))
+    for entry in entries:
+        entry.billable = body.action == "billable"
+    db.commit()
+    return BulkOut(updated=len(entries), deleted=0)
 
 
 @router.post("", response_model=EntryOut, status_code=status.HTTP_201_CREATED)

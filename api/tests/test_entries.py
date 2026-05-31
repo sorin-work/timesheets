@@ -164,3 +164,51 @@ def test_export_entries_as_csv(client, auth, project):
     assert lines[0].startswith("date,start,end,client")
     assert lines[1] == '2025-11-17,09:00,10:30,Acme,Website,"Fix ""quotes"", commas",1.50,yes,no'
     assert len(lines) == 2
+
+
+def test_bulk_mark_non_billable_and_delete(client, auth, other_auth, project):
+    ids = [
+        client.post(
+            "/api/entries",
+            json=entry(
+                project["id"], start=f"2025-11-0{d}T09:00:00Z", end=f"2025-11-0{d}T10:00:00Z"
+            ),
+            headers=auth,
+        ).json()["id"]
+        for d in (1, 2, 3)
+    ]
+    r = client.post(
+        "/api/entries/bulk", json={"ids": ids[:2], "action": "non_billable"}, headers=auth
+    )
+    assert r.json() == {"updated": 2, "deleted": 0}
+    flags = {
+        e["id"]: e["billable"] for e in client.get("/api/entries", headers=auth).json()["items"]
+    }
+    assert flags == {ids[0]: False, ids[1]: False, ids[2]: True}
+
+    r = client.post("/api/entries/bulk", json={"ids": ids, "action": "delete"}, headers=other_auth)
+    assert r.status_code == 404
+    r = client.post("/api/entries/bulk", json={"ids": [ids[2]], "action": "delete"}, headers=auth)
+    assert r.json() == {"updated": 0, "deleted": 1}
+    assert client.get("/api/entries", headers=auth).json()["total"] == 2
+
+
+def test_bulk_refuses_invoiced_entries(client, auth, project):
+    eid = client.post("/api/entries", json=entry(project["id"]), headers=auth).json()["id"]
+    client.post(
+        "/api/invoices/generate",
+        json={
+            "client_id": project["client_id"],
+            "period_start": "2025-11-01",
+            "period_end": "2025-11-30",
+        },
+        headers=auth,
+    )
+    r = client.post("/api/entries/bulk", json={"ids": [eid], "action": "delete"}, headers=auth)
+    assert r.status_code == 409
+    assert (
+        client.post(
+            "/api/entries/bulk", json={"ids": [], "action": "delete"}, headers=auth
+        ).status_code
+        == 422
+    )

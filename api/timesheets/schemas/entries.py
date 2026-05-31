@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
@@ -70,3 +70,13 @@ class EntryPage(BaseModel):
     page: int
     page_size: int
     pages: int
+
+
+class BulkIn(BaseModel):
+    ids: Annotated[list[int], Field(min_length=1, max_length=500)]
+    action: Literal["billable", "non_billable", "delete"]
+
+
+class BulkOut(BaseModel):
+    updated: int
+    deleted: int
