@@ -52,6 +52,43 @@ async function continueEntry(entry: Entry) {
   }
 }
 
+const selected = ref<Set<number>>(new Set())
+const selectable = computed(() =>
+  (page.value?.items ?? []).filter((e) => !e.running && !e.invoice_id).map((e) => e.id),
+)
+const allSelected = computed(
+  () => selectable.value.length > 0 && selectable.value.every((id) => selected.value.has(id)),
+)
+
+function toggle(id: number) {
+  const next = new Set(selected.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selected.value = next
+}
+
+function toggleAll() {
+  selected.value = allSelected.value ? new Set() : new Set(selectable.value)
+}
+
+async function bulk(action: 'billable' | 'non_billable' | 'delete') {
+  const ids = [...selected.value]
+  if (action === 'delete' && !confirm(`Delete ${ids.length} entries?`)) return
+  try {
+    const result = await api.post<{ updated: number; deleted: number }>('/entries/bulk', {
+      ids,
+      action,
+    })
+    toast.success(
+      result.deleted ? `Deleted ${result.deleted} entries` : `Updated ${result.updated} entries`,
+    )
+    selected.value = new Set()
+    await load()
+  } catch (e) {
+    toast.error((e as Error).message)
+  }
+}
+
 const exporting = ref(false)
 
 async function exportCsv() {
@@ -160,6 +197,24 @@ onMounted(async () => {
       <button type="button" @click="resetFilters">Reset</button>
     </div>
 
+    <div v-if="page?.items.length" class="bulk">
+      <label class="inline">
+        <input
+          type="checkbox"
+          :checked="allSelected"
+          :disabled="!selectable.length"
+          @change="toggleAll"
+        />
+        Select page
+      </label>
+      <template v-if="selected.size">
+        <span class="muted">{{ selected.size }} selected</span>
+        <button type="button" @click="bulk('billable')">Mark billable</button>
+        <button type="button" @click="bulk('non_billable')">Mark non-billable</button>
+        <button type="button" class="danger" @click="bulk('delete')">Delete</button>
+      </template>
+    </div>
+
     <p v-if="error" class="error">{{ error }}</p>
     <SkeletonRows v-else-if="loading && !page" />
     <EmptyState
@@ -181,6 +236,15 @@ onMounted(async () => {
               class="clickable"
               @click="e.running ? null : (editing = e)"
             >
+              <td class="check" @click.stop>
+                <input
+                  type="checkbox"
+                  :checked="selected.has(e.id)"
+                  :disabled="e.running || !!e.invoice_id"
+                  :aria-label="`Select ${e.description || e.project_name}`"
+                  @change="toggle(e.id)"
+                />
+              </td>
               <td class="desc">
                 <div>{{ e.description || '(no description)' }}</div>
                 <small class="muted">{{ e.client_name }} · {{ e.project_name }}</small>
@@ -257,6 +321,18 @@ onMounted(async () => {
 
 .desc {
   width: 55%;
+}
+
+.bulk {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  min-height: 2.25rem;
+}
+
+.check {
+  width: 2rem;
 }
 
 .play {
