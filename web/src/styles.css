@@ -261,3 +261,32 @@ a.button.primary {
   border-color: var(--primary);
   color: white;
 }
+
+@media (max-width: 700px) {
+  .table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .table .desc {
+    white-space: normal;
+    min-width: 12rem;
+  }
+
+  .hide-sm {
+    display: none;
+  }
+
+  .page-header {
+    align-items: flex-start;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+  }
+
+  .form .row {
+    grid-template-columns: 1fr;
+  }
+}

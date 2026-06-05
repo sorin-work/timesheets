@@ -80,7 +80,7 @@ onMounted(load)
         <tr>
           <th>Number</th>
           <th>Client</th>
-          <th>Issued</th>
+          <th class="hide-sm">Issued</th>
           <th>Due</th>
           <th>Status</th>
           <th class="num">Total</th>
@@ -92,7 +92,7 @@ onMounted(load)
             <RouterLink :to="`/invoices/${inv.id}`">{{ inv.number }}</RouterLink>
           </td>
           <td>{{ inv.client_name }}</td>
-          <td>{{ formatDate(inv.issue_date) }}</td>
+          <td class="hide-sm">{{ formatDate(inv.issue_date) }}</td>
           <td>{{ formatDate(inv.due_date) }}</td>
           <td><StatusBadge :status="inv.status" /></td>
           <td class="num">{{ formatMoney(inv.total, inv.currency) }}</td>

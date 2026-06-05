@@ -253,7 +253,7 @@ onMounted(async () => {
                 <span v-if="!e.billable" class="badge">non-billable</span>
                 <span v-if="e.invoice_id" class="badge billed">invoiced</span>
               </td>
-              <td class="muted times">
+              <td class="muted times hide-sm">
                 {{ formatTime(e.started_at) }} –
                 {{ e.ended_at ? formatTime(e.ended_at) : 'now' }}
               </td>

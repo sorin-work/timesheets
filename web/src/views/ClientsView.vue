@@ -98,7 +98,7 @@ onMounted(load)
       <thead>
         <tr>
           <th>Name</th>
-          <th>Email</th>
+          <th class="hide-sm">Email</th>
           <th class="num">Rate</th>
           <th></th>
         </tr>
@@ -109,7 +109,7 @@ onMounted(load)
             {{ c.name }}
             <span v-if="c.archived_at" class="badge">archived</span>
           </td>
-          <td class="muted">{{ c.email ?? '—' }}</td>
+          <td class="muted hide-sm">{{ c.email ?? '—' }}</td>
           <td class="num">
             {{ c.hourly_rate ? `${formatMoney(c.hourly_rate, c.currency)}/h` : '—' }}
           </td>
