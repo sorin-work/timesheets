@@ -438,3 +438,17 @@ def test_invoice_numbers_sort_numerically(client, auth, billed_client):
     assert numbers[-1] == "INV-1"
     ascending = client.get("/api/invoices?sort=number&order=asc", headers=auth).json()
     assert [i["number"] for i in ascending][-2:] == ["INV-10", "INV-11"]
+
+
+def test_invoice_is_not_overdue_on_its_due_date(client, auth, billed_client, monkeypatch):
+    log(client, auth, billed_client["site"]["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    inv = generate(client, auth, billed_client["client"]["id"], due_days=4).json()  # due 02-05
+    client.post(f"/api/invoices/{inv['id']}/send", headers=auth)
+    assert client.get(f"/api/invoices/{inv['id']}", headers=auth).json()["status"] == "sent"
+    assert [i["id"] for i in client.get("/api/invoices?status=sent", headers=auth).json()] == [
+        inv["id"]
+    ]
+    assert client.get("/api/invoices?status=overdue", headers=auth).json() == []
+
+    monkeypatch.setattr(clock, "today", lambda: date(2026, 2, 6))
+    assert client.get(f"/api/invoices/{inv['id']}", headers=auth).json()["status"] == "overdue"

@@ -208,7 +208,8 @@ class Invoice(TimestampMixin, Base):
 
     @property
     def is_overdue(self) -> bool:
-        return self.status == "sent" and self.due_date <= clock.today()
+        # Payment is due *on* the due date; it is late from the day after.
+        return self.status == "sent" and self.due_date < clock.today()
 
     @property
     def display_status(self) -> str:

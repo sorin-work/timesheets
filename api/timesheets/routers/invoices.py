@@ -63,9 +63,9 @@ def list_invoices(
     if client_id is not None:
         stmt = stmt.where(Invoice.client_id == client_id)
     if status == "overdue":
-        stmt = stmt.where(Invoice.status == "sent", Invoice.due_date <= clock.today())
+        stmt = stmt.where(Invoice.status == "sent", Invoice.due_date < clock.today())
     elif status == "sent":
-        stmt = stmt.where(Invoice.status == "sent", Invoice.due_date > clock.today())
+        stmt = stmt.where(Invoice.status == "sent", Invoice.due_date >= clock.today())
     elif status is not None:
         stmt = stmt.where(Invoice.status == status)
     return list(db.scalars(stmt))
