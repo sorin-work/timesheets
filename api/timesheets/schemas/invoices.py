@@ -95,3 +95,11 @@ class UnbilledSummary(BaseModel):
     client_id: int
     currency: str
     projects: list[UnbilledProject]
+
+
+class LineIn(BaseModel):
+    """A line that is not tracked time, e.g. an expense or a fixed fee."""
+
+    description: Annotated[str, Field(min_length=1, max_length=500)]
+    quantity: Annotated[Decimal, Field(gt=0, le=100000, max_digits=10, decimal_places=2)]
+    unit_price: Annotated[Decimal, Field(ge=-1000000, le=1000000, max_digits=12, decimal_places=2)]

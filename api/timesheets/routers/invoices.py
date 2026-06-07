@@ -8,14 +8,15 @@ from sqlalchemy.orm import joinedload
 
 from timesheets import clock
 from timesheets.deps import CurrentUser, DbSession, DownloadUser
-from timesheets.errors import Conflict, ValidationFailed
-from timesheets.models import Client, Invoice, InvoiceTax
+from timesheets.errors import Conflict, NotFound, ValidationFailed
+from timesheets.models import Client, Invoice, InvoiceLine, InvoiceTax
 from timesheets.routers.common import get_owned
 from timesheets.schemas.invoices import (
     GenerateIn,
     InvoiceDetail,
     InvoiceSummary,
     InvoiceUpdate,
+    LineIn,
     PaymentIn,
     UnbilledProject,
     UnbilledSummary,
@@ -27,6 +28,7 @@ from timesheets.services.invoicing import (
     recalculate,
     unbilled_entries,
 )
+from timesheets.services.money import line_amount
 from timesheets.services.pdf import render_invoice_pdf
 from timesheets.services.rounding import round_seconds
 
@@ -182,6 +184,39 @@ def update_invoice(
         invoice.taxes = [
             InvoiceTax(name=t.name.strip(), rate=t.rate, amount=Decimal("0.00")) for t in body.taxes
         ]
+    recalculate(invoice)
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+
+@router.post("/{invoice_id}/lines", response_model=InvoiceDetail, status_code=201)
+def add_line(invoice_id: int, body: LineIn, db: DbSession, user: CurrentUser) -> Invoice:
+    invoice = _draft(db, invoice_id, user)
+    invoice.lines.append(
+        InvoiceLine(
+            description=body.description.strip(),
+            quantity=body.quantity,
+            unit_price=body.unit_price,
+            amount=line_amount(body.quantity, body.unit_price),
+            position=max((line.position for line in invoice.lines), default=-1) + 1,
+        )
+    )
+    recalculate(invoice)
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+
+@router.delete("/{invoice_id}/lines/{line_id}", response_model=InvoiceDetail)
+def delete_line(invoice_id: int, line_id: int, db: DbSession, user: CurrentUser) -> Invoice:
+    invoice = _draft(db, invoice_id, user)
+    line = next((li for li in invoice.lines if li.id == line_id), None)
+    if line is None:
+        raise NotFound("Line not found")
+    if line.project_id is not None:
+        raise Conflict("Lines for tracked time go away with the draft; delete the draft instead")
+    invoice.lines.remove(line)
     recalculate(invoice)
     db.commit()
     db.refresh(invoice)

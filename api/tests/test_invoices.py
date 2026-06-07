@@ -452,3 +452,39 @@ def test_invoice_is_not_overdue_on_its_due_date(client, auth, billed_client, mon
 
     monkeypatch.setattr(clock, "today", lambda: date(2026, 2, 6))
     assert client.get(f"/api/invoices/{inv['id']}", headers=auth).json()["status"] == "overdue"
+
+
+def test_add_and_remove_custom_lines(client, auth, draft):
+    url = f"/api/invoices/{draft['id']}"
+    r = client.post(
+        f"{url}/lines",
+        json={"description": "Hosting (May)", "quantity": "1", "unit_price": "24.99"},
+        headers=auth,
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert [li["description"] for li in body["lines"]] == ["Website", "Hosting (May)"]
+    assert body["subtotal"] == "124.99"
+
+    discount = client.post(
+        f"{url}/lines",
+        json={"description": "Discount", "quantity": "1", "unit_price": "-10"},
+        headers=auth,
+    ).json()
+    assert discount["total"] == "114.99"
+
+    hosting = body["lines"][1]["id"]
+    after = client.delete(f"{url}/lines/{hosting}", headers=auth).json()
+    assert after["subtotal"] == "90.00"
+    time_line = after["lines"][0]["id"]
+    assert client.delete(f"{url}/lines/{time_line}", headers=auth).status_code == 409
+
+
+def test_lines_cannot_be_added_to_sent_invoices(client, auth, draft):
+    client.post(f"/api/invoices/{draft['id']}/send", headers=auth)
+    r = client.post(
+        f"/api/invoices/{draft['id']}/lines",
+        json={"description": "x", "quantity": "1", "unit_price": "1"},
+        headers=auth,
+    )
+    assert r.status_code == 409
