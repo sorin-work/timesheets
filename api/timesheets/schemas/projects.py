@@ -21,7 +21,7 @@ class ProjectIn(BaseModel):
 
 class ProjectUpdate(BaseModel):
     name: Name | None = None
-    hourly_rate: Decimal | None = Field(default=None, max_digits=12, decimal_places=2)
+    hourly_rate: Rate | None = None
     billable: bool | None = None
     color: Color | None = None
     budget_hours: Budget | None = None

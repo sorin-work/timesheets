@@ -110,3 +110,14 @@ def test_project_budget_and_usage(client, auth):
     assert r.json()["used_seconds"] == 10800
     r = client.patch(f"/api/projects/{project['id']}", json={"budget_hours": "0"}, headers=auth)
     assert r.status_code == 422
+
+
+def test_project_rate_cannot_be_changed_to_a_negative_value(client, auth):
+    acme = make_client(client, auth)
+    project = new_project(client, auth, acme["id"], hourly_rate="50")
+    for rate in ("-50", "-0.01", "100001"):
+        r = client.patch(f"/api/projects/{project['id']}", json={"hourly_rate": rate}, headers=auth)
+        assert r.status_code == 422, rate
+    assert (
+        client.get(f"/api/projects/{project['id']}", headers=auth).json()["hourly_rate"] == "50.00"
+    )
