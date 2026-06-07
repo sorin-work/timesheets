@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { api, getToken } from '@/api/client'
 import type { Client, Invoice, Settings } from '@/api/types'
+import AddLineForm from '@/components/AddLineForm.vue'
 import InvoiceEditForm from '@/components/InvoiceEditForm.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -44,6 +45,14 @@ async function act(action: 'send' | 'pay' | 'unpay' | 'revert') {
     toast.error((e as Error).message)
   } finally {
     busy.value = false
+  }
+}
+
+async function removeLine(lineId: number) {
+  try {
+    invoice.value = await api.delete<Invoice>(`/invoices/${id}/lines/${lineId}`)
+  } catch (e) {
+    toast.error((e as Error).message)
   }
 }
 
@@ -156,7 +165,18 @@ onMounted(async () => {
               <td>{{ line.description }}</td>
               <td class="num">{{ line.quantity }}</td>
               <td class="num">{{ money(line.unit_price) }}</td>
-              <td class="num">{{ money(line.amount) }}</td>
+              <td class="num">
+                {{ money(line.amount) }}
+                <button
+                  v-if="invoice.status === 'draft' && line.project_id === null"
+                  type="button"
+                  class="remove-line"
+                  aria-label="Remove line"
+                  @click="removeLine(line.id)"
+                >
+                  ×
+                </button>
+              </td>
             </tr>
           </tbody>
           <tfoot>
@@ -174,6 +194,12 @@ onMounted(async () => {
             </tr>
           </tfoot>
         </table>
+
+        <AddLineForm
+          v-if="invoice.status === 'draft'"
+          :invoice-id="invoice.id"
+          @added="(updated) => (invoice = updated)"
+        />
 
         <div v-if="invoice.notes" class="notes">{{ invoice.notes }}</div>
       </article>
@@ -257,6 +283,13 @@ h1 {
 .grand td {
   font-weight: 700;
   border-top: 2px solid var(--text);
+}
+
+.remove-line {
+  border: none;
+  background: none;
+  padding: 0 0.25rem;
+  color: var(--muted);
 }
 
 .notes {

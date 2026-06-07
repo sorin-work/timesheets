@@ -90,7 +90,7 @@ export const api = {
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
-  delete: (path: string, body?: unknown) => request<void>('DELETE', path, body),
+  delete: <T = void>(path: string, body?: unknown) => request<T>('DELETE', path, body),
 }
 
 /** Download an authenticated file (e.g. a CSV export) through a temporary link. */
