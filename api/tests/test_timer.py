@@ -77,3 +77,28 @@ def test_continue_an_entry(client, auth, other_auth, project):
     assert running["id"] != done["id"]
     assert (running["description"], running["billable"]) == ("API docs", False)
     assert client.post(f"/api/timer/continue/{done['id']}", headers=other_auth).status_code == 404
+
+
+def test_stop_a_forgotten_timer_at_an_earlier_time(client, auth, project, session):
+    from datetime import UTC, datetime, timedelta
+
+    from timesheets.models import TimeEntry
+
+    started = client.post(
+        "/api/timer/start", json={"project_id": project["id"]}, headers=auth
+    ).json()
+    entry = session.get(TimeEntry, started["id"])
+    entry.started_at = datetime.now(UTC) - timedelta(hours=14)
+    session.commit()
+
+    too_early = (entry.started_at - timedelta(minutes=1)).isoformat()
+    r = client.post("/api/timer/stop", json={"ended_at": too_early}, headers=auth)
+    assert r.status_code == 422
+    future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+    assert (
+        client.post("/api/timer/stop", json={"ended_at": future}, headers=auth).status_code == 422
+    )
+
+    finished = (entry.started_at + timedelta(hours=3)).isoformat()
+    stopped = client.post("/api/timer/stop", json={"ended_at": finished}, headers=auth).json()
+    assert stopped["duration_seconds"] == 3 * 3600

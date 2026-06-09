@@ -1,12 +1,12 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from timesheets.deps import CurrentUser, DbSession
-from timesheets.errors import Conflict
+from timesheets.errors import Conflict, ValidationFailed
 from timesheets.models import TimeEntry, User
 from timesheets.routers.common import get_owned
 from timesheets.routers.entries import _active_project
@@ -94,12 +94,21 @@ def update_timer(body: TimerUpdate, db: DbSession, user: CurrentUser) -> TimeEnt
     return entry
 
 
+class TimerStop(BaseModel):
+    # For a timer that was left running: stop it at the time you actually finished.
+    ended_at: AwareDatetime | None = None
+
+
 @router.post("/stop", response_model=EntryOut)
-def stop_timer(db: DbSession, user: CurrentUser) -> TimeEntry:
+def stop_timer(db: DbSession, user: CurrentUser, body: TimerStop | None = None) -> TimeEntry:
     entry = running_entry(db, user.id)
     if entry is None:
         raise Conflict("No timer is running")
-    entry.ended_at = datetime.now(UTC)
+    now = datetime.now(UTC)
+    ended_at = body.ended_at if body and body.ended_at else now
+    if ended_at <= entry.started_at or ended_at > now:
+        raise ValidationFailed("The stop time must be between the start and now")
+    entry.ended_at = ended_at
     db.commit()
     db.refresh(entry)
     return entry
