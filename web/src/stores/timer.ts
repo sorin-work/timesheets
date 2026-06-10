@@ -39,8 +39,8 @@ async function resume(entryId: number) {
   state.version++
 }
 
-async function stop() {
-  await api.post<Entry>('/timer/stop')
+async function stop(endedAt?: Date) {
+  await api.post<Entry>('/timer/stop', endedAt ? { ended_at: endedAt.toISOString() } : undefined)
   setRunning(null)
   state.version++
 }
