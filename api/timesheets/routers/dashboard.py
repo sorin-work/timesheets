@@ -29,10 +29,6 @@ class Dashboard(BaseModel):
     recent: list[EntryOut]
 
 
-def _amounts(values: dict[str, Decimal]) -> list[Amount]:
-    return [Amount(currency=c, amount=a) for c, a in sorted(values.items())]
-
-
 @router.get("", response_model=Dashboard)
 def dashboard(db: DbSession, user: CurrentUser) -> Dashboard:
     today = clock.today()
@@ -81,8 +77,8 @@ def dashboard(db: DbSession, user: CurrentUser) -> Dashboard:
         today_seconds=today_seconds,
         week_seconds=week_seconds,
         unbilled_seconds=sum(e.duration_seconds for e in unbilled_entries),
-        unbilled=_amounts(unbilled),
-        outstanding=_amounts(outstanding),
+        unbilled=Amount.list_from(unbilled),
+        outstanding=Amount.list_from(outstanding),
         outstanding_count=len(open_invoices),
         overdue_count=sum(1 for i in open_invoices if i.is_overdue),
         recent=[EntryOut.model_validate(e) for e in recent],

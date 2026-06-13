@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from decimal import Decimal
 
 from pydantic import BaseModel
@@ -6,6 +7,11 @@ from pydantic import BaseModel
 class Amount(BaseModel):
     currency: str
     amount: Decimal
+
+    @classmethod
+    def list_from(cls, values: Mapping[str, Decimal]) -> list["Amount"]:
+        """{"EUR": 10, "USD": 5} -> amounts sorted by currency, as the API returns them."""
+        return [cls(currency=c, amount=a) for c, a in sorted(values.items())]
 
 
 class TimeReportRow(BaseModel):

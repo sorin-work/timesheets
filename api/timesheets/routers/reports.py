@@ -19,10 +19,6 @@ from timesheets.services.reports import revenue_report, time_report
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
-def _amounts(values: dict[str, Decimal]) -> list[Amount]:
-    return [Amount(currency=c, amount=a) for c, a in sorted(values.items())]
-
-
 @router.get("/time", response_model=TimeReport)
 def get_time_report(
     db: DbSession,
@@ -49,13 +45,13 @@ def get_time_report(
                 tracked_seconds=row.tracked_seconds,
                 billable_seconds=row.billable_seconds,
                 unbilled_seconds=row.unbilled_seconds,
-                amounts=_amounts(row.amounts),
+                amounts=Amount.list_from(row.amounts),
             )
             for row in rows
         ],
         tracked_seconds=sum(r.tracked_seconds for r in rows),
         billable_seconds=sum(r.billable_seconds for r in rows),
-        amounts=_amounts(totals),
+        amounts=Amount.list_from(totals),
     )
 
 
@@ -76,9 +72,11 @@ def get_revenue_report(
     return RevenueReport(
         year=year,
         months=[
-            RevenueMonthOut(month=m.month, invoiced=_amounts(m.invoiced), paid=_amounts(m.paid))
+            RevenueMonthOut(
+                month=m.month, invoiced=Amount.list_from(m.invoiced), paid=Amount.list_from(m.paid)
+            )
             for m in months
         ],
-        invoiced=_amounts(invoiced),
-        paid=_amounts(paid),
+        invoiced=Amount.list_from(invoiced),
+        paid=Amount.list_from(paid),
     )
