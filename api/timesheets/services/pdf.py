@@ -112,6 +112,12 @@ def render_invoice_pdf(invoice: Invoice, user: User) -> bytes:
 
     if invoice.notes:
         story += [Spacer(1, 8 * mm), Paragraph(_multiline(invoice.notes), small)]
+    if user.payment_details:
+        story += [
+            Spacer(1, 6 * mm),
+            Paragraph("<b>Payment details</b>", small),
+            Paragraph(_multiline(user.payment_details), small),
+        ]
 
     doc.build(story)
     return buffer.getvalue()

@@ -488,3 +488,15 @@ def test_lines_cannot_be_added_to_sent_invoices(client, auth, draft):
         headers=auth,
     )
     assert r.status_code == 409
+
+
+def test_pdf_includes_payment_details(client, auth, draft):
+    client.patch(
+        "/api/settings",
+        json={"payment_details": "IBAN RO49 AAAA 1B31 0075 9384 0000\nBIC AAAARO22"},
+        headers=auth,
+    )
+    assert client.get("/api/settings", headers=auth).json()["payment_details"].startswith("IBAN")
+    r = client.get(f"/api/invoices/{draft['id']}/pdf", headers=auth)
+    assert r.status_code == 200
+    assert len(r.content) > 1000

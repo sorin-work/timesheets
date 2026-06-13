@@ -80,6 +80,9 @@ def _demo_user(session: Session) -> User:
         business_name="Dana Demo Development",
         business_address="Flat 3, 41 Elm Street\nManchester M1 2AB\nUnited Kingdom",
         tax_id="GB123456789",
+        payment_details=(
+            "Example Bank · Sort code 04-00-04 · Account 12345678\nIBAN GB33 EXMP 0400 0412 3456 78"
+        ),
         invoice_prefix="DD-",
         payment_terms_days=14,
     )

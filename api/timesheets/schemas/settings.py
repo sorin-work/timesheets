@@ -28,6 +28,7 @@ class SettingsOut(BaseModel):
     business_name: str | None
     business_address: str | None
     tax_id: str | None
+    payment_details: str | None
     invoice_prefix: str
     payment_terms_days: int
     default_taxes: list[TaxIn]
@@ -41,6 +42,7 @@ class SettingsUpdate(BaseModel):
     business_name: OptionalText = None
     business_address: OptionalText = None
     tax_id: OptionalText = None
+    payment_details: OptionalText = None
     invoice_prefix: Annotated[str, Field(pattern=r"^[A-Za-z0-9/_-]{0,16}$")] | None = None
     payment_terms_days: Annotated[int, Field(ge=0, le=365)] | None = None
     default_taxes: Annotated[list[TaxIn], Field(max_length=5)] | None = None
