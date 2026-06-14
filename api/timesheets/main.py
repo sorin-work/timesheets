@@ -3,8 +3,11 @@ import time
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
-from timesheets import __version__
+from timesheets import __version__, db
 from timesheets.config import get_settings
 from timesheets.errors import install_error_handlers
 from timesheets.routers import (
@@ -48,8 +51,18 @@ def create_app() -> FastAPI:
         return response
 
     @app.get("/api/health", tags=["meta"])
-    def health() -> dict[str, str]:
-        return {"status": "ok", "version": __version__}
+    def health() -> JSONResponse:
+        """Liveness and database connectivity, for container healthchecks."""
+        try:
+            with db.get_engine().connect() as conn:
+                conn.execute(text("SELECT 1"))
+        except SQLAlchemyError:
+            logger.exception("health check: database unavailable")
+            return JSONResponse(
+                {"status": "error", "database": "unavailable", "version": __version__},
+                status_code=503,
+            )
+        return JSONResponse({"status": "ok", "database": "ok", "version": __version__})
 
     install_error_handlers(app)
     app.include_router(auth.router)
