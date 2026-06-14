@@ -26,6 +26,7 @@ const form = reactive({
   business_name: '',
   business_address: '',
   tax_id: '',
+  payment_details: '',
   invoice_prefix: 'INV-',
   payment_terms_days: 14,
   default_taxes: [] as { name: string; rate: string }[],
@@ -47,6 +48,7 @@ function fill(settings: Settings) {
     business_name: settings.business_name ?? '',
     business_address: settings.business_address ?? '',
     tax_id: settings.tax_id ?? '',
+    payment_details: settings.payment_details ?? '',
     default_taxes: settings.default_taxes.map((t) => ({ ...t })),
   })
 }
@@ -146,6 +148,14 @@ onMounted(async () => {
             <input v-model.number="form.payment_terms_days" type="number" min="0" max="365" />
           </label>
         </div>
+        <label>
+          Payment details
+          <textarea
+            v-model="form.payment_details"
+            rows="3"
+            placeholder="Bank, IBAN, BIC… printed on every invoice"
+          />
+        </label>
         <div>
           <TaxLinesEditor v-model="form.default_taxes" />
           <small class="muted">Added to new invoices; you can still change them per invoice.</small>

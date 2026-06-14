@@ -202,6 +202,10 @@ onMounted(async () => {
         />
 
         <div v-if="invoice.notes" class="notes">{{ invoice.notes }}</div>
+        <div v-if="settings?.payment_details" class="notes">
+          <strong>Payment details</strong>
+          <div>{{ settings.payment_details }}</div>
+        </div>
       </article>
 
       <ModalDialog v-if="editing" title="Edit draft" @close="editing = false">

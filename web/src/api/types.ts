@@ -23,6 +23,7 @@ export interface Settings {
   business_name: string | null
   business_address: string | null
   tax_id: string | null
+  payment_details: string | null
   invoice_prefix: string
   payment_terms_days: number
   default_taxes: { name: string; rate: string }[]
