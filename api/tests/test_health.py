@@ -29,3 +29,12 @@ def test_cors_allows_the_dev_frontend():
         headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "GET"},
     )
     assert r.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_responses_carry_a_request_id(client):
+    generated = client.get("/api/health").headers["x-request-id"]
+    assert len(generated) == 16
+    echoed = client.get("/api/health", headers={"X-Request-ID": "abc-123"})
+    assert echoed.headers["x-request-id"] == "abc-123"
+    unsafe = client.get("/api/health", headers={"X-Request-ID": "bad id\nwith newline"[:10]})
+    assert unsafe.headers["x-request-id"] != "bad id\nwit"

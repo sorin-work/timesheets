@@ -1,5 +1,7 @@
 import logging
+import re
 import time
+import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,6 +27,8 @@ from timesheets.routers import (
 
 logger = logging.getLogger("timesheets")
 
+REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
+
 
 def create_app() -> FastAPI:
     config = get_settings()
@@ -42,11 +46,21 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
+        # Reuse the id from a proxy when it sends one, so logs can be matched up.
+        incoming = request.headers.get("x-request-id", "")
+        request_id = incoming if REQUEST_ID.fullmatch(incoming) else uuid.uuid4().hex[:16]
+        request.state.request_id = request_id
         started = time.perf_counter()
         response = await call_next(request)
         elapsed = (time.perf_counter() - started) * 1000
+        response.headers["X-Request-ID"] = request_id
         logger.info(
-            "%s %s %s %.1fms", request.method, request.url.path, response.status_code, elapsed
+            "%s %s %s %.1fms id=%s",
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed,
+            request_id,
         )
         return response
 
