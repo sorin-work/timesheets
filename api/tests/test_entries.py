@@ -212,3 +212,23 @@ def test_bulk_refuses_invoiced_entries(client, auth, project):
         ).status_code
         == 422
     )
+
+
+def test_update_cannot_move_the_end_before_the_start(client, auth, project):
+    eid = client.post("/api/entries", json=entry(project["id"]), headers=auth).json()["id"]
+    r = client.patch(f"/api/entries/{eid}", json={"ended_at": "2025-11-17T08:00:00Z"}, headers=auth)
+    assert r.status_code == 422
+    r = client.patch(
+        f"/api/entries/{eid}", json={"started_at": "2025-11-17T11:00:00Z"}, headers=auth
+    )
+    assert r.status_code == 422
+    r = client.patch(f"/api/entries/{eid}", json={"ended_at": "2025-11-18T10:00:00Z"}, headers=auth)
+    assert r.status_code == 422
+    assert client.get(f"/api/entries/{eid}", headers=auth).json()["duration_seconds"] == 5400
+
+
+def test_update_only_the_end_time(client, auth, project):
+    eid = client.post("/api/entries", json=entry(project["id"]), headers=auth).json()["id"]
+    r = client.patch(f"/api/entries/{eid}", json={"ended_at": "2025-11-17T09:45:00Z"}, headers=auth)
+    assert r.status_code == 200
+    assert r.json()["duration_seconds"] == 2700

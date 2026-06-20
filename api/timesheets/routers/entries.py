@@ -14,6 +14,7 @@ from timesheets.errors import Conflict, NotFound, ValidationFailed
 from timesheets.models import Project, TimeEntry, User
 from timesheets.routers.common import get_owned
 from timesheets.schemas.entries import (
+    MAX_ENTRY,
     BulkIn,
     BulkOut,
     EntryIn,
@@ -187,6 +188,17 @@ def update_entry(entry_id: int, body: EntryUpdate, db: DbSession, user: CurrentU
     changes = body.model_dump(exclude_unset=True)
     if changes.get("project_id") is not None:
         _active_project(db, changes["project_id"], user)
+    # The schema can only compare the two times when both are sent; check the
+    # result against the stored values too.
+    started_at = changes.get("started_at") or entry.started_at
+    ended_at = changes.get("ended_at") or entry.ended_at
+    if entry.ended_at is None and "ended_at" in changes:
+        raise ValidationFailed("Stop the timer instead of setting an end time on it")
+    if ended_at is not None:
+        if ended_at <= started_at:
+            raise ValidationFailed("ended_at must be after started_at")
+        if ended_at - started_at > MAX_ENTRY:
+            raise ValidationFailed("a single entry cannot be longer than 24 hours")
     for field, value in changes.items():
         if value is None:
             continue
