@@ -45,6 +45,8 @@ describe('parseDuration', () => {
     ['90m', 90],
     ['2h', 120],
     ['1h 15m', 75],
+    ['1h30', 90],
+    ['2h 5', 125],
     ['45', 45],
     ['3', 180],
     ['', 0],
@@ -55,6 +57,7 @@ describe('parseDuration', () => {
   it('rejects garbage', () => {
     expect(parseDuration('abc')).toBeNull()
     expect(parseDuration('1:75')).toBeNull()
+    expect(parseDuration('1h75')).toBeNull()
   })
 })
 

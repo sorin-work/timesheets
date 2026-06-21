@@ -32,8 +32,10 @@ export function parseDuration(input: string): number | null {
   if (!text) return 0
   let match = /^(\d+):([0-5]?\d)$/.exec(text)
   if (match) return Number(match[1]) * 60 + Number(match[2])
-  match = /^(?:(\d+(?:[.,]\d+)?)\s*h)?\s*(?:(\d+)\s*m(?:in)?)?$/.exec(text)
-  if (match && (match[1] || match[2])) {
+  // "1h", "90m", "1h 15m" and "1h30" (minutes after hours need no unit)
+  match = /^(?:(\d+(?:[.,]\d+)?)\s*h)?\s*(?:(\d+)\s*(m(?:in)?)?)?$/.exec(text)
+  if (match && (match[1] || match[3])) {
+    if (match[1] && match[2] && Number(match[2]) >= 60) return null
     const hours = match[1] ? Number(match[1].replace(',', '.')) : 0
     return Math.round(hours * 60) + (match[2] ? Number(match[2]) : 0)
   }
