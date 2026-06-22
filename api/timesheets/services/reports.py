@@ -34,7 +34,12 @@ def _group_key(entry: TimeEntry, group_by: str) -> tuple[str, str]:
 
 
 def time_report(
-    db: Session, user: User, date_from: date, date_to: date, group_by: str
+    db: Session,
+    user: User,
+    date_from: date,
+    date_to: date,
+    group_by: str,
+    client_id: int | None = None,
 ) -> list[TimeRow]:
     begin = datetime.combine(date_from, time.min, tzinfo=UTC)
     end = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC)
@@ -48,6 +53,8 @@ def time_report(
             TimeEntry.started_at < end,
         )
     )
+    if client_id is not None:
+        stmt = stmt.join(TimeEntry.project).where(Project.client_id == client_id)
     rows: dict[str, TimeRow] = {}
     for entry in db.scalars(stmt):
         key, label = _group_key(entry, group_by)

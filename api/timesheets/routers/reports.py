@@ -26,12 +26,13 @@ def get_time_report(
     date_from: Annotated[date, Query(alias="from")],
     date_to: Annotated[date, Query(alias="to")],
     group_by: Literal["client", "project", "month"] = "client",
+    client_id: int | None = None,
 ) -> TimeReport:
     if date_to < date_from:
         raise ValidationFailed("'to' must not be before 'from'")
     if (date_to - date_from).days > 366 * 3:
         raise ValidationFailed("Reports can cover at most three years")
-    rows = time_report(db, user, date_from, date_to, group_by)
+    rows = time_report(db, user, date_from, date_to, group_by, client_id)
     totals: dict[str, Decimal] = defaultdict(Decimal)
     for row in rows:
         for currency, amount in row.amounts.items():

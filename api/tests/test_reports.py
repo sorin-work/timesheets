@@ -125,3 +125,15 @@ def test_reports_only_include_own_entries(client, auth, other_auth, two_clients)
     log(client, auth, acme["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
     report = client.get("/api/reports/time?from=2026-01-01&to=2026-01-31", headers=other_auth)
     assert report.json()["rows"] == []
+
+
+def test_time_report_for_one_client(client, auth, two_clients):
+    acme, bolt = two_clients
+    log(client, auth, acme["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    log(client, auth, bolt["id"], "2026-01-06T09:00:00Z", "2026-01-06T10:00:00Z")
+    report = client.get(
+        f"/api/reports/time?from=2026-01-01&to=2026-01-31&group_by=month&client_id={bolt['client_id']}",
+        headers=auth,
+    ).json()
+    assert [(r["key"], r["tracked_seconds"]) for r in report["rows"]] == [("2026-01", 3600)]
+    assert report["amounts"] == [{"currency": "USD", "amount": "80.00"}]
