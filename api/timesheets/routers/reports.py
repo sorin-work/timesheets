@@ -1,9 +1,11 @@
+import csv
+import io
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from timesheets.deps import CurrentUser, DbSession
 from timesheets.errors import ValidationFailed
@@ -53,6 +55,42 @@ def get_time_report(
         tracked_seconds=sum(r.tracked_seconds for r in rows),
         billable_seconds=sum(r.billable_seconds for r in rows),
         amounts=Amount.list_from(totals),
+    )
+
+
+@router.get("/time.csv", response_class=Response)
+def get_time_report_csv(
+    db: DbSession,
+    user: CurrentUser,
+    date_from: Annotated[date, Query(alias="from")],
+    date_to: Annotated[date, Query(alias="to")],
+    group_by: Literal["client", "project", "month"] = "client",
+    client_id: int | None = None,
+) -> Response:
+    report = get_time_report(db, user, date_from, date_to, group_by, client_id)
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [group_by, "tracked_hours", "billable_hours", "unbilled_hours", "currency", "value"]
+    )
+    for row in report.rows:
+        amounts = row.amounts or [Amount(currency="", amount=Decimal("0.00"))]
+        for amount in amounts:
+            writer.writerow(
+                [
+                    row.label,
+                    f"{row.tracked_seconds / 3600:.2f}",
+                    f"{row.billable_seconds / 3600:.2f}",
+                    f"{row.unbilled_seconds / 3600:.2f}",
+                    amount.currency,
+                    f"{amount.amount:.2f}",
+                ]
+            )
+    filename = f"time-by-{group_by}-{date_from}-{date_to}.csv"
+    return Response(
+        buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

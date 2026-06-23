@@ -137,3 +137,17 @@ def test_time_report_for_one_client(client, auth, two_clients):
     ).json()
     assert [(r["key"], r["tracked_seconds"]) for r in report["rows"]] == [("2026-01", 3600)]
     assert report["amounts"] == [{"currency": "USD", "amount": "80.00"}]
+
+
+def test_time_report_csv(client, auth, two_clients):
+    acme, bolt = two_clients
+    log(client, auth, acme["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:30:00Z")
+    log(client, auth, bolt["id"], "2026-01-06T09:00:00Z", "2026-01-06T10:00:00Z", billable=False)
+    r = client.get("/api/reports/time.csv?from=2026-01-01&to=2026-01-31", headers=auth)
+    assert r.status_code == 200
+    assert "time-by-client-2026-01-01-2026-01-31.csv" in r.headers["content-disposition"]
+    assert r.text.splitlines() == [
+        "client,tracked_hours,billable_hours,unbilled_hours,currency,value",
+        "Acme,1.50,1.50,1.50,EUR,150.00",
+        "Bolt,1.00,0.00,0.00,,0.00",
+    ]
