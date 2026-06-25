@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
 
-import { api } from '@/api/client'
-import type { Amount, RevenueReport, TimeReport } from '@/api/types'
+import { api, download } from '@/api/client'
+import type { Amount, Client, RevenueReport, TimeReport } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
 import RevenueChart from '@/components/RevenueChart.vue'
 import { formatDuration, formatMoney, isoDate } from '@/lib/format'
@@ -25,6 +25,8 @@ const range = reactive({
   to: isoDate(PRESETS['This year'][1]),
 })
 const groupBy = ref<Group>('client')
+const clientId = ref<number | ''>('')
+const clients = ref<Client[]>([])
 const report = ref<TimeReport | null>(null)
 const error = ref('')
 const year = ref(now.getFullYear())
@@ -54,19 +56,31 @@ function amounts(list: Amount[]): string {
 async function load() {
   error.value = ''
   try {
-    report.value = await api.get<TimeReport>('/reports/time', {
-      from: range.from,
-      to: range.to,
-      group_by: groupBy.value,
-    })
+    report.value = await api.get<TimeReport>('/reports/time', query())
   } catch (e) {
     error.value = (e as Error).message
   }
 }
 
-watch([range, groupBy], load)
+function query() {
+  return { from: range.from, to: range.to, group_by: groupBy.value, client_id: clientId.value }
+}
+
+async function exportCsv() {
+  try {
+    await download('/reports/time.csv', query(), `time-by-${groupBy.value}.csv`)
+  } catch (e) {
+    error.value = (e as Error).message
+  }
+}
+
+watch([range, groupBy, clientId], load)
 watch(year, loadRevenue)
 onMounted(() => {
+  api
+    .get<Client[]>('/clients', { include_archived: true })
+    .then((list) => (clients.value = list))
+    .catch(() => {})
   load()
   loadRevenue().catch((e) => (error.value = (e as Error).message))
 })
@@ -91,6 +105,11 @@ onMounted(() => {
         <option value="project">By project</option>
         <option value="month">By month</option>
       </select>
+      <select v-model="clientId" aria-label="Client">
+        <option value="">All clients</option>
+        <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </select>
+      <button type="button" :disabled="!report?.rows.length" @click="exportCsv">CSV</button>
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
