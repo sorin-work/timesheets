@@ -66,6 +66,12 @@ export const router = createRouter({
           component: () => import('@/views/ReportsView.vue'),
         },
         {
+          path: ':pathMatch(.*)*',
+          name: 'not-found',
+          meta: { title: 'Not found' },
+          component: () => import('@/views/NotFoundView.vue'),
+        },
+        {
           path: 'settings',
           name: 'settings',
           meta: { title: 'Settings' },
@@ -85,7 +91,6 @@ export const router = createRouter({
         },
       ],
     },
-    { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
 
