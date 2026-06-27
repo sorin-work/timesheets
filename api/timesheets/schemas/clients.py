@@ -36,3 +36,15 @@ class ClientOut(BaseModel):
     notes: str | None
     archived_at: datetime | None
     created_at: datetime
+
+
+class ClientSummary(BaseModel):
+    client_id: int
+    currency: str
+    projects: int
+    tracked_seconds: int
+    unbilled_seconds: int
+    last_tracked_at: datetime | None
+    invoiced: Decimal
+    paid: Decimal
+    outstanding: Decimal

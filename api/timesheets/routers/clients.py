@@ -1,13 +1,14 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from fastapi import APIRouter, Response, status
 from sqlalchemy import func, select
 
 from timesheets.deps import CurrentUser, DbSession
 from timesheets.errors import Conflict
-from timesheets.models import Client, Invoice
+from timesheets.models import Client, Invoice, Project, TimeEntry
 from timesheets.routers.common import get_owned
-from timesheets.schemas.clients import ClientIn, ClientOut, ClientUpdate
+from timesheets.schemas.clients import ClientIn, ClientOut, ClientSummary, ClientUpdate
 
 router = APIRouter(prefix="/api/clients", tags=["clients"])
 
@@ -37,6 +38,59 @@ def create_client(body: ClientIn, db: DbSession, user: CurrentUser) -> Client:
 @router.get("/{client_id}", response_model=ClientOut)
 def get_client(client_id: int, db: DbSession, user: CurrentUser) -> Client:
     return get_owned(db, Client, client_id, user, "Client")
+
+
+@router.get("/{client_id}/summary", response_model=ClientSummary)
+def client_summary(client_id: int, db: DbSession, user: CurrentUser) -> ClientSummary:
+    """Totals for the client page: time tracked and money invoiced, paid and owed."""
+    client = get_owned(db, Client, client_id, user, "Client")
+    seconds = func.coalesce(
+        func.sum(func.extract("epoch", TimeEntry.ended_at - TimeEntry.started_at)), 0
+    )
+    entries = (
+        select(TimeEntry)
+        .join(TimeEntry.project)
+        .where(Project.client_id == client.id, TimeEntry.ended_at.is_not(None))
+        .subquery()
+    )
+    tracked, last = db.execute(
+        select(
+            func.coalesce(
+                func.sum(func.extract("epoch", entries.c.ended_at - entries.c.started_at)), 0
+            ),
+            func.max(entries.c.started_at),
+        )
+    ).one()
+    unbilled = db.scalar(
+        select(seconds)
+        .join(TimeEntry.project)
+        .where(
+            Project.client_id == client.id,
+            TimeEntry.ended_at.is_not(None),
+            TimeEntry.billable.is_(True),
+            TimeEntry.invoice_id.is_(None),
+        )
+    )
+    totals = dict(
+        db.execute(
+            select(Invoice.status, func.sum(Invoice.total))
+            .where(Invoice.client_id == client.id, Invoice.status != "draft")
+            .group_by(Invoice.status)
+        ).all()
+    )
+    paid = totals.get("paid") or Decimal("0.00")
+    outstanding = totals.get("sent") or Decimal("0.00")
+    return ClientSummary(
+        client_id=client.id,
+        currency=client.currency,
+        projects=db.scalar(select(func.count()).where(Project.client_id == client.id)) or 0,
+        tracked_seconds=int(tracked),
+        unbilled_seconds=int(unbilled or 0),
+        last_tracked_at=last,
+        invoiced=paid + outstanding,
+        paid=paid,
+        outstanding=outstanding,
+    )
 
 
 @router.patch("/{client_id}", response_model=ClientOut)

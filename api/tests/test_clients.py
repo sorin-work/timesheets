@@ -120,3 +120,40 @@ def test_search_clients_by_name_or_email(client, auth):
     assert names("ÄRZTE") == ["Ärzte Praxis"]
     assert names("acme.example") == ["Acme"]
     assert names("zzz") == []
+
+
+def test_client_summary(client, auth, project):
+    def log(start, end, billable=True):
+        client.post(
+            "/api/entries",
+            json={
+                "project_id": project["id"],
+                "started_at": start,
+                "ended_at": end,
+                "billable": billable,
+            },
+            headers=auth,
+        )
+
+    log("2026-05-04T09:00:00Z", "2026-05-04T11:00:00Z")
+    log("2026-05-05T09:00:00Z", "2026-05-05T09:30:00Z", billable=False)
+    inv = client.post(
+        "/api/invoices/generate",
+        json={
+            "client_id": project["client_id"],
+            "period_start": "2026-05-01",
+            "period_end": "2026-05-31",
+        },
+        headers=auth,
+    ).json()
+    client.post(f"/api/invoices/{inv['id']}/send", headers=auth)
+    log("2026-06-01T09:00:00Z", "2026-06-01T10:00:00Z")
+
+    summary = client.get(f"/api/clients/{project['client_id']}/summary", headers=auth).json()
+    assert summary["projects"] == 1
+    assert summary["tracked_seconds"] == 3.5 * 3600
+    assert summary["unbilled_seconds"] == 3600
+    assert summary["last_tracked_at"].startswith("2026-06-01T09:00")
+    assert summary["invoiced"] == "200.00"
+    assert summary["outstanding"] == "200.00"
+    assert summary["paid"] == "0.00"
