@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { api, download } from '@/api/client'
 import type { Client, Entry, Page } from '@/api/types'
@@ -103,14 +104,41 @@ async function exportCsv() {
 }
 const PAGE_SIZE = 25
 
+const route = useRoute()
+const router = useRouter()
+
+function queryString(key: string): string {
+  const value = route.query[key]
+  return typeof value === 'string' ? value : ''
+}
+
+function queryNumber(key: string): number | '' {
+  const value = Number(queryString(key))
+  return Number.isInteger(value) && value > 0 ? value : ''
+}
+
+// Filters live in the URL so a filtered list can be bookmarked or shared.
 const filters = reactive({
-  client_id: '' as number | '',
-  project_id: '' as number | '',
-  from: '',
-  to: '',
-  billable: '' as '' | 'true' | 'false',
-  q: '',
+  client_id: queryNumber('client_id'),
+  project_id: queryNumber('project_id'),
+  from: queryString('from'),
+  to: queryString('to'),
+  billable: (['true', 'false'].includes(queryString('billable')) ? queryString('billable') : '') as
+    | ''
+    | 'true'
+    | 'false',
+  q: queryString('q'),
 })
+currentPage.value = queryNumber('page') || 1
+
+function syncUrl() {
+  const query: Record<string, string> = {}
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== '') query[key] = String(value)
+  }
+  if (currentPage.value > 1) query.page = String(currentPage.value)
+  router.replace({ query })
+}
 
 const projectOptions = computed(() =>
   filters.client_id === ''
@@ -145,12 +173,14 @@ watch(filters, () => {
   clearTimeout(debounce)
   debounce = setTimeout(() => {
     currentPage.value = 1
+    syncUrl()
     load()
   }, 250)
 })
 
 function goToPage(n: number) {
   currentPage.value = n
+  syncUrl()
   load()
   window.scrollTo({ top: 0 })
 }
