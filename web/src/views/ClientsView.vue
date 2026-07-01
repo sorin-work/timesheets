@@ -106,7 +106,7 @@ onMounted(load)
       <tbody>
         <tr v-for="c in clients" :key="c.id" :class="{ archived: c.archived_at }">
           <td>
-            {{ c.name }}
+            <RouterLink :to="`/clients/${c.id}`">{{ c.name }}</RouterLink>
             <span v-if="c.archived_at" class="badge">archived</span>
           </td>
           <td class="muted hide-sm">{{ c.email ?? '—' }}</td>

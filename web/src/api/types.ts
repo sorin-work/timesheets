@@ -195,3 +195,15 @@ export interface Dashboard {
   overdue_count: number
   recent: Entry[]
 }
+
+export interface ClientSummary {
+  client_id: number
+  currency: string
+  projects: number
+  tracked_seconds: number
+  unbilled_seconds: number
+  last_tracked_at: string | null
+  invoiced: Money
+  paid: Money
+  outstanding: Money
+}

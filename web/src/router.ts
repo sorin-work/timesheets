@@ -84,6 +84,12 @@ export const router = createRouter({
           component: () => import('@/views/ClientsView.vue'),
         },
         {
+          path: 'clients/:id(\\d+)',
+          name: 'client',
+          meta: { title: 'Client' },
+          component: () => import('@/views/ClientView.vue'),
+        },
+        {
           path: 'projects',
           name: 'projects',
           meta: { title: 'Projects' },
