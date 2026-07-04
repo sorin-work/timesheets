@@ -37,3 +37,15 @@ def test_settings_validation(client, auth):
         {"payment_terms_days": -1},
     ):
         assert client.patch("/api/settings", json=payload, headers=auth).status_code == 422
+
+
+def test_weekly_target_hours(client, auth):
+    assert client.get("/api/settings", headers=auth).json()["weekly_target_hours"] is None
+    r = client.patch("/api/settings", json={"weekly_target_hours": "32.5"}, headers=auth)
+    assert r.json()["weekly_target_hours"] == "32.50"
+    assert (
+        client.patch("/api/settings", json={"weekly_target_hours": "200"}, headers=auth).status_code
+        == 422
+    )
+    r = client.patch("/api/settings", json={"weekly_target_hours": None}, headers=auth)
+    assert r.json()["weekly_target_hours"] is None

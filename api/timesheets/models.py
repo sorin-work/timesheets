@@ -37,6 +37,7 @@ class User(TimestampMixin, Base):
     timezone: Mapped[str] = mapped_column(String(64), default="UTC", server_default="UTC")
     rounding: Mapped[str] = mapped_column(String(4), default="none", server_default="none")
     currency: Mapped[str] = mapped_column(String(3), default="EUR", server_default="EUR")
+    weekly_target_hours: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
 
     # Shown on invoices
     business_name: Mapped[str | None] = mapped_column(String(200))

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Annotated
 from zoneinfo import available_timezones
 
@@ -25,6 +26,7 @@ class SettingsOut(BaseModel):
     timezone: str
     rounding: Rounding
     currency: str
+    weekly_target_hours: Decimal | None
     business_name: str | None
     business_address: str | None
     tax_id: str | None
@@ -39,6 +41,7 @@ class SettingsUpdate(BaseModel):
     timezone: TimeZone | None = None
     rounding: Rounding | None = None
     currency: Currency | None = None
+    weekly_target_hours: Annotated[Decimal, Field(gt=0, le=168, decimal_places=2)] | None = None
     business_name: OptionalText = None
     business_address: OptionalText = None
     tax_id: OptionalText = None
