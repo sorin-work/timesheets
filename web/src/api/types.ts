@@ -20,6 +20,7 @@ export interface Settings {
   timezone: string
   rounding: Rounding
   currency: string
+  weekly_target_hours: string | null
   business_name: string | null
   business_address: string | null
   tax_id: string | null

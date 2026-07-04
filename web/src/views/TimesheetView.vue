@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { api } from '@/api/client'
-import type { Timesheet, TimesheetRow } from '@/api/types'
+import type { Settings, Timesheet, TimesheetRow } from '@/api/types'
 import GridCell from '@/components/GridCell.vue'
 import { formatDuration, isoDate } from '@/lib/format'
 import { addDays, dayLabel, mondayOf, weekLabel } from '@/lib/week'
@@ -35,6 +35,12 @@ async function load() {
 }
 
 const saving = ref(false)
+const target = ref<number | null>(null)
+const progress = computed(() =>
+  target.value && sheet.value
+    ? Math.min(100, Math.round((sheet.value.total / 3600 / target.value) * 100))
+    : null,
+)
 const extra = ref<number[]>([])
 const adding = ref<number | ''>('')
 
@@ -94,6 +100,10 @@ watch(week, () => {
 })
 onMounted(() => {
   loadProjects()
+  api
+    .get<Settings>('/settings')
+    .then((s) => (target.value = s.weekly_target_hours ? Number(s.weekly_target_hours) : null))
+    .catch(() => {})
   load()
 })
 </script>
@@ -112,6 +122,10 @@ onMounted(() => {
       </div>
     </div>
 
+    <div v-if="progress !== null && sheet" class="target" :title="`${progress}% of ${target} h`">
+      <div class="track"><div class="fill" :style="{ width: `${progress}%` }" /></div>
+      <span class="muted">{{ formatDuration(sheet.total) }} of {{ target }} h this week</span>
+    </div>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <div v-if="sheet" class="grid-wrap">
       <table class="table grid">
@@ -177,6 +191,27 @@ onMounted(() => {
 <style scoped>
 .grid-wrap {
   overflow-x: auto;
+}
+
+.target {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.track {
+  flex: 1;
+  max-width: 24rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--subtle);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--primary);
 }
 
 .cell-td {

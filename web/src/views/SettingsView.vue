@@ -23,6 +23,7 @@ const form = reactive({
   timezone: 'UTC',
   rounding: 'none' as Rounding,
   currency: 'EUR',
+  weekly_target_hours: '' as string,
   business_name: '',
   business_address: '',
   tax_id: '',
@@ -48,6 +49,7 @@ function fill(settings: Settings) {
     business_name: settings.business_name ?? '',
     business_address: settings.business_address ?? '',
     tax_id: settings.tax_id ?? '',
+    weekly_target_hours: settings.weekly_target_hours ?? '',
     payment_details: settings.payment_details ?? '',
     default_taxes: settings.default_taxes.map((t) => ({ ...t })),
   })
@@ -60,7 +62,12 @@ async function save() {
   errors.value = {}
   try {
     const { email: _email, ...changes } = form
-    fill(await api.patch<Settings>('/settings', changes))
+    fill(
+      await api.patch<Settings>('/settings', {
+        ...changes,
+        weekly_target_hours: String(form.weekly_target_hours).trim() || null,
+      }),
+    )
     saved.value = true
     toast.success('Settings saved')
   } catch (e) {
@@ -112,6 +119,11 @@ onMounted(async () => {
             <option v-for="r in ROUNDING" :key="r.value" :value="r.value">{{ r.label }}</option>
           </select>
           <small class="muted">Applied to each entry; your tracked time is not changed.</small>
+        </label>
+        <label>
+          Weekly target (hours)
+          <input v-model="form.weekly_target_hours" inputmode="decimal" placeholder="e.g. 32" />
+          <small class="muted">Shown as progress on the timesheet.</small>
         </label>
       </fieldset>
 
