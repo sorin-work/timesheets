@@ -67,6 +67,23 @@ const addable = computed(() => {
   return projects.value.filter((p) => !shown.has(p.id))
 })
 
+async function copyLastWeek() {
+  if (!sheet.value) return
+  try {
+    const previous = await api.get<Timesheet>('/timesheet', {
+      week: addDays(sheet.value.week_start, -7),
+    })
+    const ids = previous.rows.map((r) => r.project_id)
+    if (!ids.length) {
+      error.value = 'Nothing was logged last week'
+      return
+    }
+    extra.value = [...new Set([...extra.value, ...ids])]
+  } catch (e) {
+    error.value = (e as Error).message
+  }
+}
+
 function addRow() {
   if (adding.value !== '') extra.value.push(adding.value)
   adding.value = ''
@@ -164,6 +181,9 @@ onMounted(() => {
         <tbody>
           <tr class="add-row">
             <td colspan="9">
+              <button v-if="!rows.length" type="button" class="copy" @click="copyLastWeek">
+                Copy projects from last week
+              </button>
               <select v-model="adding" aria-label="Add project" @change="addRow">
                 <option value="">+ Add project row…</option>
                 <option v-for="p in addable" :key="p.id" :value="p.id">
@@ -220,6 +240,10 @@ onMounted(() => {
 
 .grid th.today {
   color: var(--primary);
+}
+
+.copy {
+  margin-right: 0.5rem;
 }
 
 .add-row select {
