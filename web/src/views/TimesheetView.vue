@@ -234,6 +234,10 @@ onMounted(() => {
   background: var(--primary);
 }
 
+.cell-td:focus-within {
+  background: var(--hover);
+}
+
 .cell-td {
   padding: 0.125rem 0.25rem !important;
 }

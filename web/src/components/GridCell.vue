@@ -16,6 +16,32 @@ function reset() {
 
 watch(() => props.seconds, reset, { immediate: true })
 
+/** Left/right only leave the cell when the caret is already at that end of the text. */
+function atEdge(event: KeyboardEvent, edge: 'start' | 'end'): boolean {
+  const input = event.target as HTMLInputElement
+  const position = edge === 'start' ? 0 : input.value.length
+  return input.selectionStart === position && input.selectionEnd === position
+}
+
+function move(event: KeyboardEvent, dx: number, dy: number) {
+  const input = event.target as HTMLInputElement
+  const cell = input.closest('td')
+  const row = cell?.parentElement
+  if (!cell || !row) return
+  let target: Element | null | undefined
+  if (dy !== 0) {
+    const sibling = dy < 0 ? row.previousElementSibling : row.nextElementSibling
+    target = sibling?.children[[...row.children].indexOf(cell)]
+  } else {
+    target = dx < 0 ? cell.previousElementSibling : cell.nextElementSibling
+  }
+  const next = target?.querySelector<HTMLInputElement>('input.cell')
+  if (next) {
+    event.preventDefault()
+    next.focus()
+  }
+}
+
 function commit() {
   const minutes = parseDuration(text.value)
   if (minutes === null || minutes > 24 * 60) {
@@ -40,6 +66,10 @@ function commit() {
     @focus="($event.target as HTMLInputElement).select()"
     @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
     @keydown.esc="reset"
+    @keydown.up.prevent="move($event, 0, -1)"
+    @keydown.down.prevent="move($event, 0, 1)"
+    @keydown.left="atEdge($event, 'start') && move($event, -1, 0)"
+    @keydown.right="atEdge($event, 'end') && move($event, 1, 0)"
     @blur="commit"
   />
 </template>
