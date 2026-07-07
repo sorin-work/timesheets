@@ -55,6 +55,8 @@ def render_invoice_pdf(invoice: Invoice, user: User) -> bytes:
         seller += f"<br/>Tax ID: {escape(user.tax_id)}"
     buyer = f"<b>{escape(invoice.client.name)}</b><br/>{_multiline(invoice.client.address)}"
     dates = f"Issued: {invoice.issue_date:%d %b %Y}<br/>Due: {invoice.due_date:%d %b %Y}"
+    if invoice.reference:
+        dates += f"<br/>Reference: {escape(invoice.reference)}"
     if invoice.period_start and invoice.period_end:
         dates += f"<br/>Period: {invoice.period_start:%d %b} - {invoice.period_end:%d %b %Y}"
     header = Table(

@@ -189,6 +189,8 @@ class Invoice(TimestampMixin, Base):
     period_start: Mapped[date | None] = mapped_column(Date)
     period_end: Mapped[date | None] = mapped_column(Date)
     currency: Mapped[str] = mapped_column(String(3))
+    # The client's purchase order or reference, if they need one on the invoice
+    reference: Mapped[str | None] = mapped_column(String(100))
     notes: Mapped[str | None] = mapped_column(Text)
     subtotal: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
     tax_total: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))

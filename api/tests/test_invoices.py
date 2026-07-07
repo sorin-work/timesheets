@@ -500,3 +500,15 @@ def test_pdf_includes_payment_details(client, auth, draft):
     r = client.get(f"/api/invoices/{draft['id']}/pdf", headers=auth)
     assert r.status_code == 200
     assert len(r.content) > 1000
+
+
+def test_invoice_reference(client, auth, billed_client):
+    log(client, auth, billed_client["site"]["id"], "2026-01-05T09:00:00Z", "2026-01-05T10:00:00Z")
+    inv = generate(client, auth, billed_client["client"]["id"], reference=" PO-7781 ").json()
+    assert inv["reference"] == "PO-7781"
+    r = client.patch(f"/api/invoices/{inv['id']}", json={"reference": ""}, headers=auth)
+    assert r.json()["reference"] is None
+    assert (
+        generate(client, auth, billed_client["client"]["id"], reference="x" * 101).status_code
+        == 422
+    )

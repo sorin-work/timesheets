@@ -174,6 +174,8 @@ def update_invoice(
     changes = body.model_dump(exclude_unset=True)
     if "notes" in changes:
         invoice.notes = changes["notes"]
+    if "reference" in changes:
+        invoice.reference = (changes["reference"] or "").strip() or None
     if changes.get("issue_date"):
         invoice.issue_date = changes["issue_date"]
     if changes.get("due_date"):

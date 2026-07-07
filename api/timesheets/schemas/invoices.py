@@ -6,6 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from timesheets.schemas.common import OptionalText
 
+Reference = Annotated[str | None, Field(default=None, max_length=100)]
+
 
 class TaxIn(BaseModel):
     name: Annotated[str, Field(min_length=1, max_length=60)]
@@ -20,6 +22,7 @@ class GenerateIn(BaseModel):
     group_by: Literal["project", "entry"] = "project"
     issue_date: date | None = None
     due_days: Annotated[int, Field(ge=0, le=365)] | None = None
+    reference: Reference = None
     notes: OptionalText = None
     # None means "use the default taxes from settings"; [] means no taxes.
     taxes: Annotated[list[TaxIn], Field(max_length=5)] | None = None
@@ -63,6 +66,7 @@ class InvoiceSummary(BaseModel):
 class InvoiceDetail(InvoiceSummary):
     period_start: date | None
     period_end: date | None
+    reference: str | None
     notes: str | None
     sent_at: datetime | None
     paid_at: datetime | None
@@ -78,6 +82,7 @@ class PaymentIn(BaseModel):
 class InvoiceUpdate(BaseModel):
     issue_date: date | None = None
     due_date: date | None = None
+    reference: Reference = None
     notes: OptionalText = None
     taxes: Annotated[list[TaxIn], Field(max_length=5)] | None = None
 

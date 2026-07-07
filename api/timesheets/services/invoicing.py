@@ -34,6 +34,7 @@ class GenerateOptions:
     issue_date: date | None = None
     due_days: int | None = None
     notes: str | None = None
+    reference: str | None = None
     taxes: list[tuple[str, Decimal]] = field(default_factory=list)
 
 
@@ -170,6 +171,7 @@ def generate_invoice(db: Session, user: User, client: Client, options: GenerateO
         period_start=options.period_start,
         period_end=options.period_end,
         currency=client.currency,
+        reference=(options.reference or "").strip() or None,
         notes=options.notes,
     )
     invoice.lines = _build_lines(entries, user.rounding, options.group_by)
