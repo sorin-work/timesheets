@@ -134,6 +134,7 @@ export interface InvoiceTax {
 export interface Invoice extends InvoiceSummary {
   period_start: string | null
   period_end: string | null
+  reference: string | null
   notes: string | null
   sent_at: string | null
   paid_at: string | null

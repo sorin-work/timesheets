@@ -25,6 +25,7 @@ const form = reactive({
   period_end: isoDate(lastOfLastMonth),
   group_by: 'project' as 'project' | 'entry',
   due_days: '' as number | '',
+  reference: '',
   notes: '',
   taxes: [] as { name: string; rate: string }[],
 })
@@ -60,6 +61,7 @@ async function submit() {
       ...form,
       due_days: form.due_days === '' ? null : form.due_days,
       notes: form.notes || null,
+      reference: form.reference || null,
       project_ids: selected.value,
     })
     await router.push(`/invoices/${invoice.id}`)
@@ -166,6 +168,11 @@ onMounted(async () => {
           />
         </label>
       </div>
+
+      <label>
+        Client reference / PO number
+        <input v-model="form.reference" maxlength="100" placeholder="Optional" />
+      </label>
 
       <TaxLinesEditor v-model="form.taxes" />
 

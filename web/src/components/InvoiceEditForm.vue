@@ -12,6 +12,7 @@ const form = reactive({
   issue_date: props.invoice.issue_date,
   due_date: props.invoice.due_date,
   notes: props.invoice.notes ?? '',
+  reference: props.invoice.reference ?? '',
   taxes: props.invoice.taxes.map((t) => ({ name: t.name, rate: String(Number(t.rate)) })),
 })
 const error = ref('')
@@ -43,6 +44,10 @@ async function submit() {
         <input v-model="form.due_date" type="date" required />
       </label>
     </div>
+    <label>
+      Client reference / PO number
+      <input v-model="form.reference" maxlength="100" />
+    </label>
     <TaxLinesEditor v-model="form.taxes" />
     <label>
       Notes

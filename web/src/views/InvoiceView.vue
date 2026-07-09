@@ -144,6 +144,10 @@ onMounted(async () => {
             <dd>{{ formatDate(invoice.issue_date) }}</dd>
             <dt>Due</dt>
             <dd>{{ formatDate(invoice.due_date) }}</dd>
+            <template v-if="invoice.reference">
+              <dt>Reference</dt>
+              <dd>{{ invoice.reference }}</dd>
+            </template>
             <template v-if="invoice.period_start && invoice.period_end">
               <dt>Period</dt>
               <dd>{{ formatDate(invoice.period_start) }} – {{ formatDate(invoice.period_end) }}</dd>
