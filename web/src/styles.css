@@ -290,3 +290,30 @@ a.button.primary {
     grid-template-columns: 1fr;
   }
 }
+
+@media print {
+  .sidebar,
+  .topbar,
+  .toolbar,
+  .toasts,
+  .no-print {
+    display: none !important;
+  }
+
+  .layout {
+    display: block !important;
+  }
+
+  .page {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .card {
+    border: none !important;
+  }
+
+  body {
+    background: white;
+  }
+}

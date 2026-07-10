@@ -48,6 +48,10 @@ async function act(action: 'send' | 'pay' | 'unpay' | 'revert') {
   }
 }
 
+function print() {
+  window.print()
+}
+
 async function removeLine(lineId: number) {
   try {
     invoice.value = await api.delete<Invoice>(`/invoices/${id}/lines/${lineId}`)
@@ -100,6 +104,7 @@ onMounted(async () => {
 
       <div class="toolbar">
         <a class="button" :href="pdfUrl" target="_blank" rel="noopener">Download PDF</a>
+        <button type="button" @click="print">Print</button>
         <template v-if="invoice.status === 'draft'">
           <button class="primary" type="button" :disabled="busy" @click="act('send')">
             Mark as sent
@@ -201,6 +206,7 @@ onMounted(async () => {
 
         <AddLineForm
           v-if="invoice.status === 'draft'"
+          class="no-print"
           :invoice-id="invoice.id"
           @added="(updated) => (invoice = updated)"
         />
