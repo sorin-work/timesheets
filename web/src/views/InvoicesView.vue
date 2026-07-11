@@ -8,6 +8,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonRows from '@/components/SkeletonRows.vue'
 import { formatDate, formatMoney } from '@/lib/format'
+import { useLoader } from '@/lib/useLoader'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,22 +21,15 @@ const TABS: { value: InvoiceStatus | ''; label: string }[] = [
   { value: 'paid', label: 'Paid' },
 ]
 
-const invoices = ref<InvoiceSummary[]>([])
-const loading = ref(true)
-const error = ref('')
 const status = ref<InvoiceStatus | ''>((route.query.status as InvoiceStatus) ?? '')
-
-async function load() {
-  loading.value = true
-  error.value = ''
-  try {
-    invoices.value = await api.get<InvoiceSummary[]>('/invoices', { status: status.value })
-  } catch (e) {
-    error.value = (e as Error).message
-  } finally {
-    loading.value = false
-  }
-}
+const {
+  data: invoices,
+  loading,
+  error,
+  load,
+} = useLoader<InvoiceSummary[]>([], () =>
+  api.get<InvoiceSummary[]>('/invoices', { status: status.value }),
+)
 
 watch(status, (value) => {
   router.replace({ query: value ? { status: value } : {} })
