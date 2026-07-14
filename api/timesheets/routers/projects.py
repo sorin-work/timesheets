@@ -88,7 +88,16 @@ def update_project(
 def archive_project(project_id: int, db: DbSession, user: CurrentUser) -> Project:
     project = get_owned(db, Project, project_id, user, "Project")
     if project.archived_at is None:
-        project.archived_at = datetime.now(UTC)
+        now = datetime.now(UTC)
+        project.archived_at = now
+        # A timer left running on an archived project could never be edited again.
+        running = db.scalar(
+            select(TimeEntry).where(
+                TimeEntry.project_id == project.id, TimeEntry.ended_at.is_(None)
+            )
+        )
+        if running is not None:
+            running.ended_at = now
         db.commit()
     return project
 

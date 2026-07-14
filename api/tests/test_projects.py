@@ -121,3 +121,13 @@ def test_project_rate_cannot_be_changed_to_a_negative_value(client, auth):
     assert (
         client.get(f"/api/projects/{project['id']}", headers=auth).json()["hourly_rate"] == "50.00"
     )
+
+
+def test_archiving_a_project_stops_its_timer(client, auth):
+    acme = make_client(client, auth)
+    project = new_project(client, auth, acme["id"])
+    client.post("/api/timer/start", json={"project_id": project["id"]}, headers=auth)
+    client.post(f"/api/projects/{project['id']}/archive", headers=auth)
+    assert client.get("/api/timer", headers=auth).json() is None
+    entries = client.get("/api/entries", headers=auth).json()["items"]
+    assert entries[0]["running"] is False
