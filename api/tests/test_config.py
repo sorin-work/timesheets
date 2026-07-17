@@ -7,3 +7,8 @@ def test_settings_read_from_environment(monkeypatch):
     settings = Settings()
     assert settings.database_url.endswith("@db:5432/x")
     assert settings.token_ttl_minutes == 30
+
+
+def test_cors_origins_from_a_comma_separated_list(monkeypatch):
+    monkeypatch.setenv("CORS_ORIGINS", "https://a.example, https://b.example,")
+    assert Settings().cors_origins == ["https://a.example", "https://b.example"]
