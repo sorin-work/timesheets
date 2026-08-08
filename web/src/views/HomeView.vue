@@ -4,6 +4,7 @@ import { onMounted, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import type { Amount, Dashboard } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
+import GettingStarted from '@/components/GettingStarted.vue'
 import { formatDate, formatDuration, formatMoney } from '@/lib/format'
 import { useAuth } from '@/stores/auth'
 import { useTimer } from '@/stores/timer'
@@ -34,6 +35,7 @@ onMounted(load)
     <div class="page-header">
       <h1>Hello, {{ auth.state.user?.name }}</h1>
     </div>
+    <GettingStarted />
     <p v-if="error" class="error">{{ error }}</p>
     <template v-else-if="data">
       <div class="stats">
