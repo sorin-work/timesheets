@@ -95,3 +95,31 @@ def test_grid_entries_are_created_on_the_local_day(client, auth, project):
     assert website_row(r.json())["seconds"][1] == 3600
     created = client.get("/api/entries", headers=auth).json()["items"][0]
     assert created["started_at"] == "2026-04-20T21:00:00Z"  # 09:00 in Auckland
+
+
+def test_invoiced_grid_time_is_kept_when_the_cell_changes(client, auth, project):
+    client.patch(f"/api/clients/{project['client_id']}", json={"hourly_rate": "50"}, headers=auth)
+    cell(client, auth, project["id"], "2026-08-04", 120)
+    client.post(
+        "/api/invoices/generate",
+        json={
+            "client_id": project["client_id"],
+            "period_start": "2026-08-01",
+            "period_end": "2026-08-31",
+        },
+        headers=auth,
+    )
+    assert cell(client, auth, project["id"], "2026-08-04", 60).status_code == 422
+    r = cell(client, auth, project["id"], "2026-08-04", 180)
+    assert website_row(r.json())["seconds"][1] == 3 * 3600
+    sources = sorted(
+        (e["source"], e["invoice_id"] is not None)
+        for e in client.get("/api/entries", headers=auth).json()["items"]
+    )
+    assert sources == [("grid", False), ("grid", True)]
+
+
+def test_cell_validation(client, auth, project, other_auth):
+    assert cell(client, auth, project["id"], "2026-08-04", -1).status_code == 422
+    assert cell(client, auth, project["id"], "2026-08-04", 24 * 60 + 1).status_code == 422
+    assert cell(client, other_auth, project["id"], "2026-08-04", 30).status_code == 404
