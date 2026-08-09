@@ -151,3 +151,14 @@ def test_time_report_csv(client, auth, two_clients):
         "Acme,1.50,1.50,1.50,EUR,150.00",
         "Bolt,1.00,0.00,0.00,,0.00",
     ]
+
+
+def test_report_values_use_the_rounding_setting(client, auth, two_clients):
+    acme, _ = two_clients
+    client.patch("/api/settings", json={"rounding": "15"}, headers=auth)
+    log(client, auth, acme["id"], "2026-01-05T09:00:00Z", "2026-01-05T09:10:00Z")  # -> 15 min
+    log(client, auth, acme["id"], "2026-01-06T09:00:00Z", "2026-01-06T10:00:00Z")  # stays 60
+    report = client.get("/api/reports/time?from=2026-01-01&to=2026-01-31", headers=auth).json()
+    row = report["rows"][0]
+    assert row["tracked_seconds"] == 70 * 60  # tracked time is not rounded
+    assert row["amounts"] == [{"currency": "EUR", "amount": "125.00"}]
