@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from timesheets.schemas.common import OptionalText
+from timesheets.schemas.reports import Amount
 
 Reference = Annotated[str | None, Field(default=None, max_length=100)]
 
@@ -108,3 +109,13 @@ class LineIn(BaseModel):
     description: Annotated[str, Field(min_length=1, max_length=500)]
     quantity: Annotated[Decimal, Field(gt=0, le=100000, max_digits=10, decimal_places=2)]
     unit_price: Annotated[Decimal, Field(ge=-1000000, le=1000000, max_digits=12, decimal_places=2)]
+
+
+class StatusTotal(BaseModel):
+    status: str
+    count: int
+    totals: list[Amount]
+
+
+class InvoicesOverview(BaseModel):
+    statuses: list[StatusTotal]

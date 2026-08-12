@@ -512,3 +512,27 @@ def test_invoice_reference(client, auth, billed_client):
         generate(client, auth, billed_client["client"]["id"], reference="x" * 101).status_code
         == 422
     )
+
+
+def test_invoices_overview(client, auth, billed_client):
+    site = billed_client["site"]["id"]
+    for day in ("05", "06", "07"):
+        log(client, auth, site, f"2026-01-{day}T09:00:00Z", f"2026-01-{day}T10:00:00Z")
+        generate(
+            client,
+            auth,
+            billed_client["client"]["id"],
+            period_start=f"2026-01-{day}",
+            period_end=f"2026-01-{day}",
+            issue_date="2026-01-10",
+        )
+    client.post("/api/invoices/1/send", headers=auth)  # due 01-24 -> overdue
+    client.post("/api/invoices/2/send", headers=auth)
+    client.post("/api/invoices/2/pay", headers=auth)
+    overview = {
+        s["status"]: s
+        for s in client.get("/api/invoices/overview", headers=auth).json()["statuses"]
+    }
+    assert [overview[s]["count"] for s in ("draft", "sent", "overdue", "paid")] == [1, 0, 1, 1]
+    assert overview["overdue"]["totals"] == [{"currency": "EUR", "amount": "100.00"}]
+    assert overview["sent"]["totals"] == []

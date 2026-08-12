@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Literal
@@ -14,13 +15,16 @@ from timesheets.routers.common import get_owned
 from timesheets.schemas.invoices import (
     GenerateIn,
     InvoiceDetail,
+    InvoicesOverview,
     InvoiceSummary,
     InvoiceUpdate,
     LineIn,
     PaymentIn,
+    StatusTotal,
     UnbilledProject,
     UnbilledSummary,
 )
+from timesheets.schemas.reports import Amount
 from timesheets.services.invoicing import (
     GenerateOptions,
     change_status,
@@ -71,6 +75,23 @@ def list_invoices(
     elif status is not None:
         stmt = stmt.where(Invoice.status == status)
     return list(db.scalars(stmt))
+
+
+@router.get("/overview", response_model=InvoicesOverview)
+def invoices_overview(db: DbSession, user: CurrentUser) -> InvoicesOverview:
+    """Count and total per status (overdue split out of sent), for the list header."""
+    counts: dict[str, int] = defaultdict(int)
+    totals: dict[str, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
+    for invoice in db.scalars(select(Invoice).where(Invoice.user_id == user.id)):
+        status_ = invoice.display_status
+        counts[status_] += 1
+        totals[status_][invoice.currency] += invoice.total
+    return InvoicesOverview(
+        statuses=[
+            StatusTotal(status=s, count=counts[s], totals=Amount.list_from(totals[s]))
+            for s in ("draft", "sent", "overdue", "paid")
+        ]
+    )
 
 
 @router.get("/unbilled", response_model=UnbilledSummary)
