@@ -3,7 +3,7 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { api } from '@/api/client'
-import type { InvoiceStatus, InvoiceSummary } from '@/api/types'
+import type { InvoicesOverview, InvoiceStatus, InvoiceSummary } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonRows from '@/components/SkeletonRows.vue'
@@ -31,12 +31,30 @@ const {
   api.get<InvoiceSummary[]>('/invoices', { status: status.value }),
 )
 
+const overview = ref<InvoicesOverview | null>(null)
+
+function tabCount(value: InvoiceStatus | ''): number | null {
+  if (!overview.value || value === '') return null
+  return overview.value.statuses.find((s) => s.status === value)?.count ?? 0
+}
+
+function tabTotal(value: InvoiceStatus | ''): string {
+  const entry = overview.value?.statuses.find((s) => s.status === value)
+  return entry?.totals.map((t) => formatMoney(t.amount, t.currency)).join(' + ') ?? ''
+}
+
 watch(status, (value) => {
   router.replace({ query: value ? { status: value } : {} })
   load()
 })
 
-onMounted(load)
+onMounted(() => {
+  load()
+  api
+    .get<InvoicesOverview>('/invoices/overview')
+    .then((o) => (overview.value = o))
+    .catch(() => {})
+})
 </script>
 
 <template>
@@ -54,9 +72,11 @@ onMounted(load)
         role="tab"
         :aria-selected="status === tab.value"
         :class="{ active: status === tab.value }"
+        :title="tabTotal(tab.value)"
         @click="status = tab.value"
       >
         {{ tab.label }}
+        <span v-if="tabCount(tab.value)" class="count">{{ tabCount(tab.value) }}</span>
       </button>
     </div>
 
@@ -111,6 +131,14 @@ onMounted(load)
   border-radius: 0;
   padding: 0.5rem 0.75rem;
   color: var(--muted);
+}
+
+.count {
+  font-size: 0.75rem;
+  background: var(--subtle);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+  margin-left: 0.25rem;
 }
 
 .tabs button.active {

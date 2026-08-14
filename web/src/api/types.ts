@@ -209,3 +209,7 @@ export interface ClientSummary {
   paid: Money
   outstanding: Money
 }
+
+export interface InvoicesOverview {
+  statuses: { status: InvoiceStatus; count: number; totals: Amount[] }[]
+}
