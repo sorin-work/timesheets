@@ -124,9 +124,7 @@ const filters = reactive({
   from: queryString('from'),
   to: queryString('to'),
   billable: (['true', 'false'].includes(queryString('billable')) ? queryString('billable') : '') as
-    | ''
-    | 'true'
-    | 'false',
+    '' | 'true' | 'false',
   q: queryString('q'),
 })
 currentPage.value = queryNumber('page') || 1
