@@ -13,7 +13,7 @@ from timesheets.schemas.projects import ProjectIn, ProjectOut, ProjectUpdate
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
-def _with_usage(db, projects: list[Project]) -> list[Project]:
+def with_usage(db, projects: list[Project]) -> list[Project]:
     """Attach the total tracked seconds to each project in one query."""
     if not projects:
         return projects
@@ -50,7 +50,7 @@ def list_projects(
         stmt = stmt.where(Project.client_id == client_id)
     if not include_archived:
         stmt = stmt.where(Project.archived_at.is_(None))
-    return _with_usage(db, list(db.scalars(stmt)))
+    return with_usage(db, list(db.scalars(stmt)))
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
@@ -62,12 +62,12 @@ def create_project(body: ProjectIn, db: DbSession, user: CurrentUser) -> Project
     db.add(project)
     db.commit()
     db.refresh(project)
-    return _with_usage(db, [project])[0]
+    return with_usage(db, [project])[0]
 
 
 @router.get("/{project_id}", response_model=ProjectOut)
 def get_project(project_id: int, db: DbSession, user: CurrentUser) -> Project:
-    return _with_usage(db, [get_owned(db, Project, project_id, user, "Project")])[0]
+    return with_usage(db, [get_owned(db, Project, project_id, user, "Project")])[0]
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)
@@ -81,7 +81,7 @@ def update_project(
         setattr(project, field, value)
     db.commit()
     db.refresh(project)
-    return _with_usage(db, [project])[0]
+    return with_usage(db, [project])[0]
 
 
 @router.post("/{project_id}/archive", response_model=ProjectOut)

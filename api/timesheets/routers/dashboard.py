@@ -10,12 +10,24 @@ from sqlalchemy.orm import joinedload
 from timesheets import clock
 from timesheets.deps import CurrentUser, DbSession
 from timesheets.models import Invoice, Project, TimeEntry
+from timesheets.routers.projects import with_usage
 from timesheets.schemas.entries import EntryOut
 from timesheets.schemas.reports import Amount
 from timesheets.services.money import hours_from_seconds, line_amount
 from timesheets.services.rounding import round_seconds
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+
+BUDGET_WARNING_PERCENT = 80
+
+
+class BudgetWarning(BaseModel):
+    project_id: int
+    project_name: str
+    client_name: str
+    budget_hours: Decimal
+    used_seconds: int
+    percent: int
 
 
 class Dashboard(BaseModel):
@@ -27,6 +39,7 @@ class Dashboard(BaseModel):
     outstanding_count: int
     overdue_count: int
     recent: list[EntryOut]
+    budgets: list[BudgetWarning]
 
 
 @router.get("", response_model=Dashboard)
@@ -65,6 +78,37 @@ def dashboard(db: DbSession, user: CurrentUser) -> Dashboard:
     for invoice in open_invoices:
         outstanding[invoice.currency] += invoice.total
 
+    budgeted = with_usage(
+        db,
+        list(
+            db.scalars(
+                select(Project)
+                .options(joinedload(Project.client))
+                .where(
+                    Project.user_id == user.id,
+                    Project.archived_at.is_(None),
+                    Project.budget_hours.is_not(None),
+                )
+            )
+        ),
+    )
+    budgets = []
+    for project in budgeted:
+        assert project.budget_hours is not None
+        percent = int(project.used_seconds * 100 / (project.budget_hours * 3600))
+        if percent >= BUDGET_WARNING_PERCENT:
+            budgets.append(
+                BudgetWarning(
+                    project_id=project.id,
+                    project_name=project.name,
+                    client_name=project.client_name,
+                    budget_hours=project.budget_hours,
+                    used_seconds=project.used_seconds,
+                    percent=percent,
+                )
+            )
+    budgets.sort(key=lambda b: -b.percent)
+
     recent = db.scalars(
         select(TimeEntry)
         .options(joinedload(TimeEntry.project).joinedload(Project.client))
@@ -82,4 +126,5 @@ def dashboard(db: DbSession, user: CurrentUser) -> Dashboard:
         outstanding_count=len(open_invoices),
         overdue_count=sum(1 for i in open_invoices if i.is_overdue),
         recent=[EntryOut.model_validate(e) for e in recent],
+        budgets=budgets,
     )

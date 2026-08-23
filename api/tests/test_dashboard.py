@@ -53,3 +53,17 @@ def test_dashboard_numbers(client, auth, project):
     assert body["outstanding_count"] == 1
     assert body["overdue_count"] == 1
     assert len(body["recent"]) == 4
+
+
+def test_dashboard_warns_about_budgets(client, auth, project):
+    client.patch(f"/api/projects/{project['id']}", json={"budget_hours": "2"}, headers=auth)
+    log(client, auth, project["id"], "2026-03-02T08:00:00Z", "2026-03-02T09:30:00Z")
+    body = client.get("/api/dashboard", headers=auth).json()
+    assert body["budgets"] == []
+    log(client, auth, project["id"], "2026-03-03T08:00:00Z", "2026-03-03T09:00:00Z")
+    warning = client.get("/api/dashboard", headers=auth).json()["budgets"][0]
+    assert (warning["project_name"], warning["percent"], warning["budget_hours"]) == (
+        "Website",
+        125,
+        "2.00",
+    )
