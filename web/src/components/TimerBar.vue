@@ -43,7 +43,27 @@ function toggle() {
     })
   } else if (projectId.value) {
     const id = projectId.value
+    rememberProject(id)
     run(() => timer.start(id, description.value))
+  }
+}
+
+const LAST_PROJECT = 'timesheets.lastProject'
+
+function rememberProject(id: number) {
+  try {
+    localStorage.setItem(LAST_PROJECT, String(id))
+  } catch {
+    // private mode: nothing to remember
+  }
+}
+
+function lastProject(): number | null {
+  try {
+    const id = Number(localStorage.getItem(LAST_PROJECT))
+    return projects.value.some((p) => p.id === id) ? id : null
+  } catch {
+    return null
   }
 }
 
@@ -88,7 +108,9 @@ function onShortcut(event: KeyboardEvent) {
 onMounted(() => {
   document.addEventListener('keydown', onShortcut)
   baseTitle.value = document.title
-  load()
+  load().then(() => {
+    if (!timer.state.running && projectId.value === null) projectId.value = lastProject()
+  })
   timer.refresh().catch(() => {})
 })
 
