@@ -196,6 +196,14 @@ export interface Dashboard {
   outstanding_count: number
   overdue_count: number
   recent: Entry[]
+  budgets: {
+    project_id: number
+    project_name: string
+    client_name: string
+    budget_hours: string
+    used_seconds: number
+    percent: number
+  }[]
 }
 
 export interface ClientSummary {

@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue'
 
 import { api } from '@/api/client'
 import type { Amount, Dashboard } from '@/api/types'
+import BudgetBar from '@/components/BudgetBar.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import GettingStarted from '@/components/GettingStarted.vue'
 import { formatDate, formatDuration, formatMoney } from '@/lib/format'
@@ -62,6 +63,17 @@ onMounted(load)
         </RouterLink>
       </div>
 
+      <div v-if="data.budgets.length" class="card budgets">
+        <h2>Budgets</h2>
+        <div v-for="b in data.budgets" :key="b.project_id" class="budget-row">
+          <span>
+            {{ b.client_name }} · {{ b.project_name }}
+            <strong :class="b.percent >= 100 ? 'error' : 'warn'">{{ b.percent }}%</strong>
+          </span>
+          <BudgetBar :used-seconds="b.used_seconds" :budget-hours="b.budget_hours" />
+        </div>
+      </div>
+
       <h2>Recent entries</h2>
       <EmptyState
         v-if="!data.recent.length"
@@ -110,6 +122,26 @@ onMounted(load)
 
 h2 {
   font-size: 1.125rem;
+}
+
+.budgets {
+  margin-bottom: 1.5rem;
+}
+
+.budgets h2 {
+  margin-top: 0;
+}
+
+.budget-row {
+  display: grid;
+  grid-template-columns: 1fr 14rem;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.25rem 0;
+}
+
+.warn {
+  color: var(--warning);
 }
 
 .small {
