@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
 from timesheets import clock
@@ -48,11 +48,17 @@ def dashboard(db: DbSession, user: CurrentUser) -> Dashboard:
     day_start = datetime.combine(today, time.min, tzinfo=UTC)
     week_start = day_start - timedelta(days=today.weekday())
 
-    week_entries = db.scalars(
-        select(TimeEntry).where(TimeEntry.user_id == user.id, TimeEntry.started_at >= week_start)
-    ).all()
-    week_seconds = sum(e.duration_seconds for e in week_entries)
-    today_seconds = sum(e.duration_seconds for e in week_entries if e.started_at >= day_start)
+    duration = func.extract(
+        "epoch", func.coalesce(TimeEntry.ended_at, func.now()) - TimeEntry.started_at
+    )
+    week_total, today_total = db.execute(
+        select(
+            func.coalesce(func.sum(duration), 0),
+            func.coalesce(func.sum(duration).filter(TimeEntry.started_at >= day_start), 0),
+        ).where(TimeEntry.user_id == user.id, TimeEntry.started_at >= week_start)
+    ).one()
+    week_seconds = int(week_total)
+    today_seconds = int(today_total)
 
     unbilled_entries = db.scalars(
         select(TimeEntry)
