@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from timesheets import clock
-from timesheets.errors import Conflict, ValidationFailed
+from timesheets.errors import Conflict, NotFound, ValidationFailed
 from timesheets.models import (
     Client,
     Invoice,
@@ -213,3 +213,29 @@ def change_status(db: Session, invoice: Invoice, action: str, when: datetime | N
     elif action == "revert":
         invoice.sent_at = None
     db.commit()
+
+
+def add_extra_line(
+    invoice: Invoice, description: str, quantity: Decimal, unit_price: Decimal
+) -> InvoiceLine:
+    """A line that is not tracked time (expense, fixed fee, discount) on a draft."""
+    line = InvoiceLine(
+        description=description.strip(),
+        quantity=quantity,
+        unit_price=unit_price,
+        amount=line_amount(quantity, unit_price),
+        position=max((li.position for li in invoice.lines), default=-1) + 1,
+    )
+    invoice.lines.append(line)
+    recalculate(invoice)
+    return line
+
+
+def remove_extra_line(invoice: Invoice, line_id: int) -> None:
+    line = next((li for li in invoice.lines if li.id == line_id), None)
+    if line is None:
+        raise NotFound("Line not found")
+    if line.project_id is not None:
+        raise Conflict("Lines for tracked time go away with the draft; delete the draft instead")
+    invoice.lines.remove(line)
+    recalculate(invoice)
