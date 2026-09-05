@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import LongTimerNotice from '@/components/LongTimerNotice.vue'
+import ShortcutsHelp from '@/components/ShortcutsHelp.vue'
 import TimerBar from '@/components/TimerBar.vue'
 import { setTheme, storedTheme, type Theme } from '@/lib/theme'
 import { useAuth } from '@/stores/auth'
@@ -76,6 +77,7 @@ function logout() {
         <TimerBar />
       </header>
       <LongTimerNotice />
+      <ShortcutsHelp />
       <main class="page">
         <RouterView />
       </main>
