@@ -23,6 +23,8 @@ const bars = computed(() =>
   })),
 )
 
+const empty = computed(() => bars.value.every((b) => !b.invoiced && !b.paid))
+
 const max = computed(() => Math.max(1, ...bars.value.flatMap((b) => [b.invoiced, b.paid])))
 
 function h(value: number): number {
@@ -31,7 +33,8 @@ function h(value: number): number {
 </script>
 
 <template>
-  <figure class="chart">
+  <p v-if="empty" class="muted empty">No invoices sent in {{ report.year }}.</p>
+  <figure v-else class="chart">
     <svg
       :viewBox="`0 0 ${12 * 40} ${HEIGHT + 20}`"
       role="img"
@@ -66,6 +69,11 @@ function h(value: number): number {
 </template>
 
 <style scoped>
+.empty {
+  padding: 2rem 0;
+  text-align: center;
+}
+
 .chart {
   margin: 0;
 }
