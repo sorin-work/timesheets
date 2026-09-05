@@ -8,7 +8,7 @@ import AddLineForm from '@/components/AddLineForm.vue'
 import InvoiceEditForm from '@/components/InvoiceEditForm.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import { formatDate, formatMoney } from '@/lib/format'
+import { formatDate, formatMoney, isoDate } from '@/lib/format'
 import { useToasts } from '@/stores/toasts'
 
 const toast = useToasts()
@@ -28,7 +28,7 @@ function onSaved(updated: Invoice) {
   invoice.value = updated
   editing.value = false
 }
-const paidOn = ref(new Date().toISOString().slice(0, 10))
+const paidOn = ref(isoDate(new Date()))
 
 const pdfUrl = computed(
   () => `/api/invoices/${id}/pdf?token=${encodeURIComponent(getToken() ?? '')}`,
