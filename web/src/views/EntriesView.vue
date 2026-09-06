@@ -53,6 +53,13 @@ async function continueEntry(entry: Entry) {
   }
 }
 
+const SOURCE_ICONS = { timer: '⏱', manual: '✎', grid: '▦' } as const
+const SOURCE_LABELS = {
+  timer: 'Tracked with the timer',
+  manual: 'Added by hand',
+  grid: 'Typed into the timesheet',
+} as const
+
 const selected = ref<Set<number>>(new Set())
 const selectable = computed(() =>
   (page.value?.items ?? []).filter((e) => !e.running && !e.invoice_id).map((e) => e.id),
@@ -282,6 +289,9 @@ onMounted(async () => {
                 <span v-if="e.invoice_id" class="badge billed">invoiced</span>
               </td>
               <td class="muted times hide-sm">
+                <span class="source" :title="SOURCE_LABELS[e.source]">{{
+                  SOURCE_ICONS[e.source]
+                }}</span>
                 {{ formatTime(e.started_at) }} –
                 {{ e.ended_at ? formatTime(e.ended_at) : 'now' }}
               </td>
@@ -349,6 +359,12 @@ onMounted(async () => {
 
 .desc {
   width: 55%;
+}
+
+.source {
+  display: inline-block;
+  width: 1.25rem;
+  text-align: center;
 }
 
 .bulk {
