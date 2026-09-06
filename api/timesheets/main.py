@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from timesheets import __version__, db
 from timesheets.config import get_settings
 from timesheets.errors import install_error_handlers
+from timesheets.logs import configure_logging
 from timesheets.routers import (
     auth,
     clients,
@@ -32,9 +33,7 @@ REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
 
 def create_app() -> FastAPI:
     config = get_settings()
-    logging.basicConfig(
-        level=config.log_level.upper(), format="%(asctime)s %(levelname)s %(name)s %(message)s"
-    )
+    configure_logging(config.log_level, config.log_format)
     app = FastAPI(title="timesheets", version=__version__)
     app.add_middleware(
         CORSMiddleware,

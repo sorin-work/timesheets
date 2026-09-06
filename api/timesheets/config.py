@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # Comma separated in the environment: CORS_ORIGINS=https://a.example,https://b.example
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
     log_level: str = "info"
+    log_format: Literal["text", "json"] = "text"
 
     @field_validator("cors_origins", mode="before")
     @classmethod
