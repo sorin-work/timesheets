@@ -22,14 +22,35 @@ const TABS: { value: InvoiceStatus | ''; label: string }[] = [
 ]
 
 const status = ref<InvoiceStatus | ''>((route.query.status as InvoiceStatus) ?? '')
+const sort = ref<'number' | 'issue_date' | 'due_date' | 'total'>('number')
+const order = ref<'asc' | 'desc'>('desc')
 const {
   data: invoices,
   loading,
   error,
   load,
 } = useLoader<InvoiceSummary[]>([], () =>
-  api.get<InvoiceSummary[]>('/invoices', { status: status.value }),
+  api.get<InvoiceSummary[]>('/invoices', {
+    status: status.value,
+    sort: sort.value,
+    order: order.value,
+  }),
 )
+
+type SortKey = 'number' | 'issue_date' | 'due_date' | 'total'
+
+function sortBy(key: SortKey) {
+  if (sort.value === key) order.value = order.value === 'desc' ? 'asc' : 'desc'
+  else {
+    sort.value = key
+    order.value = 'desc'
+  }
+  load()
+}
+
+function arrow(key: SortKey): string {
+  return sort.value === key ? (order.value === 'desc' ? ' ↓' : ' ↑') : ''
+}
 
 const overview = ref<InvoicesOverview | null>(null)
 
@@ -92,12 +113,28 @@ onMounted(() => {
     <table v-else class="table">
       <thead>
         <tr>
-          <th>Number</th>
+          <th>
+            <button class="sort" type="button" @click="sortBy('number')">
+              Number{{ arrow('number') }}
+            </button>
+          </th>
           <th>Client</th>
-          <th class="hide-sm">Issued</th>
-          <th>Due</th>
+          <th class="hide-sm">
+            <button class="sort" type="button" @click="sortBy('issue_date')">
+              Issued{{ arrow('issue_date') }}
+            </button>
+          </th>
+          <th>
+            <button class="sort" type="button" @click="sortBy('due_date')">
+              Due{{ arrow('due_date') }}
+            </button>
+          </th>
           <th>Status</th>
-          <th class="num">Total</th>
+          <th class="num">
+            <button class="sort" type="button" @click="sortBy('total')">
+              Total{{ arrow('total') }}
+            </button>
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -131,6 +168,16 @@ onMounted(() => {
   border-radius: 0;
   padding: 0.5rem 0.75rem;
   color: var(--muted);
+}
+
+.sort {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
 }
 
 .count {
