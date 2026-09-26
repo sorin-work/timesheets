@@ -39,7 +39,7 @@ CLIENTS = [
         "currency": "EUR",
         "hourly_rate": Decimal("90.00"),
         "projects": [
-            ("Booking app", None, True, "#059669"),
+            ("Booking app", None, True, "#059669", Decimal("400")),
             ("Code review", Decimal("110.00"), True, "#ca8a04"),
         ],
     },
@@ -85,6 +85,7 @@ def _demo_user(session: Session) -> User:
         ),
         invoice_prefix="DD-",
         payment_terms_days=14,
+        weekly_target_hours=Decimal("30"),
     )
     session.add(user)
     session.flush()
@@ -97,7 +98,7 @@ def _projects(session: Session, user: User) -> list[Project]:
         data = {k: v for k, v in spec.items() if k != "projects"}
         client = Client(user_id=user.id, **data)
         session.add(client)
-        for name, rate, billable, color in spec["projects"]:
+        for name, rate, billable, color, *budget in spec["projects"]:
             project = Project(
                 user_id=user.id,
                 client=client,
@@ -105,6 +106,7 @@ def _projects(session: Session, user: User) -> list[Project]:
                 hourly_rate=rate,
                 billable=billable,
                 color=color,
+                budget_hours=budget[0] if budget else None,
             )
             session.add(project)
             projects.append(project)
@@ -196,8 +198,34 @@ def seed(session: Session, days: int = 180) -> User | None:
     _entries(session, user, projects, days, rng)
     session.commit()
     _invoices(session, user, months=min(5, days // 31))
+    _draft_for_this_month(session, user)
     session.commit()
     return user
+
+
+def _draft_for_this_month(session: Session, user: User) -> None:
+    """The current month so far for the biggest client, still a draft."""
+    today = clock.today()
+    client = session.scalar(
+        select(Client).where(Client.user_id == user.id, Client.name == "Blue Fjord AS")
+    )
+    if client is None or today.day == 1:
+        return
+    try:
+        generate_invoice(
+            session,
+            user,
+            client,
+            GenerateOptions(
+                client_id=client.id,
+                period_start=today.replace(day=1),
+                period_end=today - timedelta(days=1),
+                issue_date=today,
+                reference="PO-2026-118",
+            ),
+        )
+    except Exception:  # nothing tracked yet this month
+        session.rollback()
 
 
 def main() -> None:
