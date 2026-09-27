@@ -23,6 +23,9 @@ services:
       DATABASE_URL: postgresql+psycopg://timesheets:timesheets@db:5432/timesheets
       SECRET_KEY: ${SECRET_KEY:-local-development-secret-change-me}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-text}
+      # The browser talks to nginx on the same origin; only needed for other frontends.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       # Creates demo@example.com / demo-password with six months of sample data.
       SEED_DEMO: ${SEED_DEMO:-true}
     depends_on:
