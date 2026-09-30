@@ -67,6 +67,7 @@ class EntryOut(BaseModel):
 class EntryPage(BaseModel):
     items: list[EntryOut]
     total: int
+    total_seconds: int
     page: int
     page_size: int
     pages: int

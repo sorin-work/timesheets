@@ -86,11 +86,26 @@ def list_entries(
     page_size: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> EntryPage:
     stmt = _filtered(user, filters)
-    total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
+    matching = stmt.order_by(None).subquery()
+    total, total_seconds = db.execute(
+        select(
+            func.count(),
+            func.coalesce(
+                func.sum(
+                    func.extract(
+                        "epoch",
+                        func.coalesce(matching.c.ended_at, func.now()) - matching.c.started_at,
+                    )
+                ),
+                0,
+            ),
+        ).select_from(matching)
+    ).one()
     items = db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)).all()
     return EntryPage(
         items=[EntryOut.model_validate(e) for e in items],
         total=total,
+        total_seconds=int(total_seconds),
         page=page,
         page_size=page_size,
         pages=max(1, math.ceil(total / page_size)),

@@ -70,7 +70,14 @@ def test_entries_are_paginated(client, auth, project):
 
 def test_empty_entries_list_has_one_page(client, auth):
     body = client.get("/api/entries", headers=auth).json()
-    assert body == {"items": [], "total": 0, "page": 1, "page_size": 50, "pages": 1}
+    assert body == {
+        "items": [],
+        "total": 0,
+        "total_seconds": 0,
+        "page": 1,
+        "page_size": 50,
+        "pages": 1,
+    }
 
 
 def test_entry_validation(client, auth, project):
@@ -232,3 +239,17 @@ def test_update_only_the_end_time(client, auth, project):
     r = client.patch(f"/api/entries/{eid}", json={"ended_at": "2025-11-17T09:45:00Z"}, headers=auth)
     assert r.status_code == 200
     assert r.json()["duration_seconds"] == 2700
+
+
+def test_list_reports_the_total_duration_of_all_matches(client, auth, project):
+    for day in (1, 2, 3):
+        client.post(
+            "/api/entries",
+            json=entry(
+                project["id"], start=f"2025-11-0{day}T09:00:00Z", end=f"2025-11-0{day}T09:20:00Z"
+            ),
+            headers=auth,
+        )
+    body = client.get("/api/entries?page_size=1", headers=auth).json()
+    assert len(body["items"]) == 1
+    assert body["total_seconds"] == 3600
