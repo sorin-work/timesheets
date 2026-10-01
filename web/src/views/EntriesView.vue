@@ -201,7 +201,12 @@ onMounted(async () => {
 <template>
   <section>
     <div class="page-header">
-      <h1>Time entries</h1>
+      <div>
+        <h1>Time entries</h1>
+        <p v-if="page?.total" class="muted summary">
+          {{ page.total }} entries · {{ formatDuration(page.total_seconds) }}
+        </p>
+      </div>
       <div class="header-actions">
         <button type="button" :disabled="exporting || !page?.total" @click="exportCsv">
           Export CSV
@@ -359,6 +364,10 @@ onMounted(async () => {
 
 .desc {
   width: 55%;
+}
+
+.summary {
+  margin: 0.125rem 0 0;
 }
 
 .source {

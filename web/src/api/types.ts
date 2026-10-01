@@ -78,6 +78,7 @@ export interface Entry {
 export interface Page<T> {
   items: T[]
   total: number
+  total_seconds: number
   page: number
   page_size: number
   pages: number
