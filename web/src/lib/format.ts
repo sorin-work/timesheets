@@ -70,3 +70,13 @@ export function formatDate(value: string): string {
 export function formatTime(value: string): string {
   return new Date(value).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
+
+/** "due today", "due in 3 days", "5 days late" for an invoice due date (YYYY-MM-DD). */
+export function dueLabel(dueDate: string, today: string = isoDate(new Date())): string {
+  const days = Math.round(
+    (Date.parse(`${dueDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000,
+  )
+  if (days === 0) return 'due today'
+  if (days > 0) return days === 1 ? 'due tomorrow' : `due in ${days} days`
+  return days === -1 ? '1 day late' : `${-days} days late`
+}

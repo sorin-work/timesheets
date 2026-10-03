@@ -7,7 +7,7 @@ import type { InvoicesOverview, InvoiceStatus, InvoiceSummary } from '@/api/type
 import EmptyState from '@/components/EmptyState.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonRows from '@/components/SkeletonRows.vue'
-import { formatDate, formatMoney } from '@/lib/format'
+import { dueLabel, formatDate, formatMoney } from '@/lib/format'
 import { useLoader } from '@/lib/useLoader'
 
 const route = useRoute()
@@ -144,7 +144,15 @@ onMounted(() => {
           </td>
           <td>{{ inv.client_name }}</td>
           <td class="hide-sm">{{ formatDate(inv.issue_date) }}</td>
-          <td>{{ formatDate(inv.due_date) }}</td>
+          <td>
+            {{ formatDate(inv.due_date) }}
+            <small
+              v-if="inv.status === 'sent' || inv.status === 'overdue'"
+              :class="inv.status === 'overdue' ? 'error' : 'muted'"
+            >
+              · {{ dueLabel(inv.due_date) }}
+            </small>
+          </td>
           <td><StatusBadge :status="inv.status" /></td>
           <td class="num">{{ formatMoney(inv.total, inv.currency) }}</td>
         </tr>

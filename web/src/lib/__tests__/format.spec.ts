@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  dueLabel,
   formatClock,
   formatDuration,
   formatHours,
@@ -65,6 +66,16 @@ describe('formatMoney', () => {
   it('formats with the currency', () => {
     expect(formatMoney('1234.5', 'EUR')).toBe('€1,234.50')
     expect(formatMoney(80, 'USD')).toBe('US$80.00')
+  })
+})
+
+describe('dueLabel', () => {
+  it('counts days to or past the due date', () => {
+    expect(dueLabel('2026-10-05', '2026-10-05')).toBe('due today')
+    expect(dueLabel('2026-10-06', '2026-10-05')).toBe('due tomorrow')
+    expect(dueLabel('2026-11-04', '2026-10-05')).toBe('due in 30 days')
+    expect(dueLabel('2026-10-04', '2026-10-05')).toBe('1 day late')
+    expect(dueLabel('2026-03-01', '2026-03-29')).toBe('28 days late')
   })
 })
 
