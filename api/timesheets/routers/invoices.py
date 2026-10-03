@@ -5,11 +5,11 @@ from typing import Literal
 
 from fastapi import APIRouter, Response, status
 from sqlalchemy import select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from timesheets import clock
 from timesheets.deps import CurrentUser, DbSession, DownloadUser
-from timesheets.errors import Conflict, ValidationFailed
+from timesheets.errors import Conflict, NotFound, ValidationFailed
 from timesheets.models import Client, Invoice, InvoiceTax
 from timesheets.routers.common import get_owned
 from timesheets.schemas.invoices import (
@@ -143,7 +143,18 @@ def generate(body: GenerateIn, db: DbSession, user: CurrentUser) -> Invoice:
 
 @router.get("/{invoice_id}", response_model=InvoiceDetail)
 def get_invoice(invoice_id: int, db: DbSession, user: CurrentUser) -> Invoice:
-    return get_owned(db, Invoice, invoice_id, user, "Invoice")
+    invoice = db.scalar(
+        select(Invoice)
+        .options(
+            joinedload(Invoice.client),
+            selectinload(Invoice.lines),
+            selectinload(Invoice.taxes),
+        )
+        .where(Invoice.id == invoice_id, Invoice.user_id == user.id)
+    )
+    if invoice is None:
+        raise NotFound("Invoice not found")
+    return invoice
 
 
 @router.post("/{invoice_id}/send", response_model=InvoiceDetail)

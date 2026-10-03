@@ -14,10 +14,12 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, object_session, relationship
 
 from timesheets import clock
 from timesheets.db import Base, TimestampMixin
@@ -223,7 +225,13 @@ class Invoice(TimestampMixin, Base):
 
     @property
     def entry_count(self) -> int:
-        return len(self.entries)
+        # A count query instead of loading every entry of a long invoice.
+        session = object_session(self)
+        if session is None:
+            return len(self.entries)
+        return session.scalar(
+            select(func.count()).select_from(TimeEntry).where(TimeEntry.invoice_id == self.id)
+        )
 
 
 class InvoiceLine(Base):
