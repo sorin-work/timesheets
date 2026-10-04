@@ -35,6 +35,11 @@ const pdfUrl = computed(
 )
 
 async function act(action: 'send' | 'pay' | 'unpay' | 'revert') {
+  if (
+    action === 'revert' &&
+    !confirm('Move this invoice back to draft? Only do this if the client has not received it.')
+  )
+    return
   busy.value = true
   error.value = ''
   try {
