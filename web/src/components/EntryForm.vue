@@ -9,7 +9,7 @@ import { useProjects } from '@/stores/projects'
 const props = defineProps<{ entry?: Entry | null; defaultDate?: string }>()
 const emit = defineEmits<{ saved: [entry: Entry]; deleted: []; cancel: [] }>()
 
-const { projects } = useProjects()
+const { projects, grouped } = useProjects()
 
 function timeOf(value: string): string {
   const d = new Date(value)
@@ -105,9 +105,9 @@ async function remove() {
       <label>
         Project
         <select v-model.number="form.project_id" required>
-          <option v-for="p in projects" :key="p.id" :value="p.id">
-            {{ p.client_name }} · {{ p.name }}
-          </option>
+          <optgroup v-for="[clientName, list] in grouped" :key="clientName" :label="clientName">
+            <option v-for="p in list" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </optgroup>
         </select>
       </label>
       <label>

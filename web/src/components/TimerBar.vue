@@ -6,7 +6,7 @@ import { useProjects } from '@/stores/projects'
 import { useTimer } from '@/stores/timer'
 
 const timer = useTimer()
-const { projects, load } = useProjects()
+const { projects, grouped, load } = useProjects()
 
 const projectId = ref<number | null>(null)
 const description = ref('')
@@ -133,9 +133,9 @@ onBeforeUnmount(() => {
     />
     <select v-model.number="projectId" required aria-label="Project" @change="changeProject">
       <option :value="null" disabled>Project…</option>
-      <option v-for="p in projects" :key="p.id" :value="p.id">
-        {{ p.client_name }} · {{ p.name }}
-      </option>
+      <optgroup v-for="[clientName, list] in grouped" :key="clientName" :label="clientName">
+        <option v-for="p in list" :key="p.id" :value="p.id">{{ p.name }}</option>
+      </optgroup>
     </select>
     <span class="clock" :class="{ live: timer.state.running }">
       {{ formatClock(timer.elapsed.value) }}

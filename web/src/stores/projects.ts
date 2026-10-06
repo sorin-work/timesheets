@@ -19,5 +19,13 @@ export function useProjects() {
 
   const byId = computed(() => new Map(projects.value.map((p) => [p.id, p])))
 
-  return { projects, byId, load }
+  /** [[client name, projects]] in list order, for <optgroup>s. */
+  const grouped = computed(() => {
+    const groups = new Map<string, Project[]>()
+    for (const p of projects.value)
+      groups.set(p.client_name, [...(groups.get(p.client_name) ?? []), p])
+    return [...groups.entries()]
+  })
+
+  return { projects, byId, grouped, load }
 }
