@@ -49,6 +49,10 @@ async function update(changes: { description?: string; project_id?: number }) {
   setRunning(await api.patch<Entry>('/timer', changes))
 }
 
+export function resetTimer(): void {
+  setRunning(null)
+}
+
 const elapsed = computed(() =>
   state.running ? Math.max(0, (state.now - Date.parse(state.running.started_at)) / 1000) : 0,
 )

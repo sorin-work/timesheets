@@ -7,6 +7,12 @@ const projects = ref<Project[]>([])
 let loaded: Promise<void> | null = null
 
 /** Active projects for pickers, loaded once and shared between components. */
+/** Forget the cached list, e.g. when the user signs out. */
+export function resetProjects(): void {
+  projects.value = []
+  loaded = null
+}
+
 export function useProjects() {
   function load(force = false): Promise<void> {
     if (!loaded || force) {

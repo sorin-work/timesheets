@@ -2,6 +2,8 @@ import { reactive, readonly } from 'vue'
 
 import { api, getToken, setToken } from '@/api/client'
 import type { TokenResponse, User } from '@/api/types'
+import { resetProjects } from '@/stores/projects'
+import { resetTimer } from '@/stores/timer'
 
 const state = reactive<{ user: User | null; ready: boolean }>({ user: null, ready: false })
 
@@ -33,13 +35,19 @@ async function signup(name: string, email: string, password: string): Promise<Us
   return accept(await api.post<TokenResponse>('/auth/signup', { name, email, password }))
 }
 
+function clearSession(): void {
+  state.user = null
+  resetProjects()
+  resetTimer()
+}
+
 function logout(): void {
   setToken(null)
-  state.user = null
+  clearSession()
 }
 
 function forget(): void {
-  state.user = null
+  clearSession()
 }
 
 export function useAuth() {
