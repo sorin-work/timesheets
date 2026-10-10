@@ -63,13 +63,14 @@ tracked durations are never changed.
 | PATCH  | `/api/projects/{id}`            | `hourly_rate: null` falls back to the client    |
 | POST   | `/api/projects/{id}/archive`    | also stops a timer running on it                |
 
-Projects return `effective_rate` (own rate or the client's) and `used_seconds`.
+Projects return `effective_rate` (own rate or the client's) and `used_seconds`
+(all tracked time). The dashboard lists projects at 80% of their budget or more.
 
 ## Time entries and timer
 
 | Method | Path                             | Notes                                         |
 | ------ | -------------------------------- | --------------------------------------------- |
-| GET    | `/api/entries`                   | filters: `client_id`, `project_id`, `from`, `to`, `billable`, `q`; `page`, `page_size` (max 200) |
+| GET    | `/api/entries`                   | returns `items`, `total`, `total_seconds`, `pages`; filters: `client_id`, `project_id`, `from`, `to`, `billable`, `q`; `page`, `page_size` (max 200) |
 | GET    | `/api/entries/export.csv`        | same filters, CSV                             |
 | POST   | `/api/entries`                   | `{project_id, started_at, ended_at, description?, billable?}` |
 | PATCH  | `/api/entries/{id}`              | partial; 409 once the entry is invoiced       |
@@ -144,4 +145,6 @@ Status `overdue` is derived: a sent invoice whose due date has passed.
   excluded) and paid (by payment date) per month and currency.
 - `GET /api/dashboard`: today, this week, unbilled time and value, outstanding
   invoices and the latest entries.
+- Logs: one line per request with method, path, status, duration and request
+  id; `LOG_FORMAT=json` prints JSON objects instead.
 - `GET /api/health`: `200 {"status": "ok", "database": "ok"}` or `503`.
