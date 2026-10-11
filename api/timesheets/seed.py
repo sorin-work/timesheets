@@ -39,7 +39,7 @@ CLIENTS = [
         "currency": "EUR",
         "hourly_rate": Decimal("90.00"),
         "projects": [
-            ("Booking app", None, True, "#059669", Decimal("400")),
+            ("Booking app", None, True, "#059669", Decimal("100")),
             ("Code review", Decimal("110.00"), True, "#ca8a04"),
         ],
     },
