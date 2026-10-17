@@ -24,7 +24,25 @@ const range = reactive({
   from: isoDate(PRESETS['This year'][0]),
   to: isoDate(PRESETS['This year'][1]),
 })
-const groupBy = ref<Group>('client')
+const GROUP_KEY = 'timesheets.reportGroup'
+
+function savedGroup(): Group {
+  try {
+    const value = localStorage.getItem(GROUP_KEY)
+    return value === 'project' || value === 'month' ? value : 'client'
+  } catch {
+    return 'client'
+  }
+}
+
+const groupBy = ref<Group>(savedGroup())
+watch(groupBy, (value) => {
+  try {
+    localStorage.setItem(GROUP_KEY, value)
+  } catch {
+    // storage unavailable: keep it for this visit only
+  }
+})
 const clientId = ref<number | ''>('')
 const clients = ref<Client[]>([])
 const report = ref<TimeReport | null>(null)
