@@ -139,6 +139,19 @@ docs/
   architecture.md   how the pieces fit together
 ```
 
+## Contributing
+
+- Branch from `main` and keep commits small; messages follow
+  [Conventional Commits](https://www.conventionalcommits.org/) (`feat(api): ...`,
+  `fix(web): ...`).
+- Schema changes need a migration: change `models.py`, then
+  `alembic revision --autogenerate -m "what changed"`, read the generated file
+  (autogenerate misses partial indexes and server defaults now and then) and
+  run `alembic upgrade head`. The test suite fails when models and migrations
+  drift apart.
+- Bug fixes come with a regression test. `make lint test` before pushing runs
+  what CI runs.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
