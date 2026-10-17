@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { api } from '@/api/client'
 import LongTimerNotice from '@/components/LongTimerNotice.vue'
 import ShortcutsHelp from '@/components/ShortcutsHelp.vue'
 import TimerBar from '@/components/TimerBar.vue'
@@ -12,6 +13,14 @@ const auth = useAuth()
 const router = useRouter()
 const menuOpen = ref(false)
 const theme = ref<Theme>(storedTheme())
+const version = ref('')
+
+onMounted(() => {
+  api
+    .get<{ version: string }>('/health')
+    .then((h) => (version.value = h.version))
+    .catch(() => {})
+})
 
 function changeTheme() {
   setTheme(theme.value)
@@ -67,6 +76,7 @@ function logout() {
           <option value="dark">Dark</option>
         </select>
         <button type="button" @click="logout">Sign out</button>
+        <small v-if="version" class="version">v{{ version }}</small>
       </div>
     </aside>
     <div class="content">
@@ -143,6 +153,10 @@ nav {
   background: #1f2937;
   color: inherit;
   border-color: #374151;
+}
+
+.version {
+  color: #6b7280;
 }
 
 .account button {
