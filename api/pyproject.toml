@@ -13,4 +13,8 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-filterwarnings = ["ignore::DeprecationWarning:starlette.*"]
+filterwarnings = [
+  "ignore::DeprecationWarning:starlette.*",
+  # Newer starlette wants httpx2 for its TestClient; httpx still works fine.
+  "ignore:Using `httpx` with `starlette.testclient`",
+]
