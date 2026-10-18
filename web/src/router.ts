@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import { setUnauthorizedHandler } from '@/api/client'
 import AppLayout from '@/components/AppLayout.vue'
+import { pageTitle } from '@/lib/title'
 import { useAuth } from '@/stores/auth'
 
 export const router = createRouter({
@@ -113,8 +114,7 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  const title = to.meta.title as string | undefined
-  document.title = title ? `${title} · Timesheets` : 'Timesheets'
+  document.title = pageTitle(to)
 })
 
 setUnauthorizedHandler(() => {

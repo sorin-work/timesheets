@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
+import { useRoute } from 'vue-router'
 
 import { formatClock } from '@/lib/format'
+import { pageTitle } from '@/lib/title'
 import { useProjects } from '@/stores/projects'
 import { useTimer } from '@/stores/timer'
 
@@ -82,13 +84,14 @@ function changeProject() {
 }
 
 // Show the running time in the browser tab, so it is visible from other tabs.
-const baseTitle = { value: document.title }
+// The page title comes from the current route, not from when the timer started.
+const route = useRoute()
 watchEffect(() => {
   const running = timer.state.running
   if (running) {
     document.title = `▶ ${formatClock(timer.elapsed.value)} · ${running.project_name}`
   } else if (document.title.startsWith('▶')) {
-    document.title = baseTitle.value
+    document.title = pageTitle(route)
   }
 })
 
@@ -107,7 +110,6 @@ function onShortcut(event: KeyboardEvent) {
 
 onMounted(() => {
   document.addEventListener('keydown', onShortcut)
-  baseTitle.value = document.title
   load().then(() => {
     if (!timer.state.running && projectId.value === null) projectId.value = lastProject()
   })
@@ -116,7 +118,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onShortcut)
-  if (document.title.startsWith('▶')) document.title = baseTitle.value
+  if (document.title.startsWith('▶')) document.title = pageTitle(route)
 })
 </script>
 
