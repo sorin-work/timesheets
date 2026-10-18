@@ -44,10 +44,21 @@ Open http://localhost:4412 and sign in with the demo account:
 - **Email:** `demo@example.com`
 - **Password:** `demo-password`
 
-The demo user is created on first start with six months of time entries for
-three clients, invoices in every state, a project budget and a weekly target.
+The demo user is created on first start with:
+
+- three clients in GBP and EUR (one with a project rate override) plus an
+  internal, non-billable "Admin" project;
+- about six months of weekday time entries from the timer, forms and grid,
+  rounded to 6 minutes when invoiced;
+- monthly invoices for every client: older ones paid, last month's sent (and
+  overdue once the 14 day terms pass), a draft for the current month with a
+  PO reference, and 20% VAT on the GBP client;
+- a 100 hour budget on "Booking app" that is close to running out, and a
+  30 hour weekly target.
+
 Set `SEED_DEMO=false` to start with an empty database. Data lives in the
-`db-data` volume; `docker compose down -v` removes it.
+`db-data` volume; `docker compose down -v` removes it. Outside Docker, run
+`python -m timesheets.seed` (`--days 365` for a longer history).
 
 ```bash
 WEB_PORT=8080 docker compose up -d      # another port
