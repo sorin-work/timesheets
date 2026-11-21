@@ -765,3 +765,133 @@ routes, and how long invoice generation and PDF rendering take.
   migrations at head, compared with Alembic's current revision).
 - Tests: metrics disabled by default, counters move after a request, ready
   fails on a pending migration.
+
+## Maybe
+
+### 32. Idle and forgotten-timer reminders
+
+The timer can be stopped at the time you really finished, and
+`LongTimerNotice.vue` prompts after 10 hours (`LIMIT_SECONDS`). Short gaps (a
+two hour lunch with the timer on) are not caught, and nothing reminds anyone
+to start the timer in the first place.
+
+- Browser only, no server work: with the Idle Detection API where the browser
+  has it (Chromium, behind a permission), or a simple "no input in this tab for
+  N minutes" check, offer "You were away from 12:10. Keep, discard or split
+  that time?". Discard stops the timer at 12:10 through the existing
+  `ended_at` on `/api/timer/stop`; split stops and starts again.
+- An optional desktop notification during working hours when no timer runs.
+- Why Maybe: tab-level detection misses work done in other applications,
+  which is most work. It may be more annoying than useful.
+- Tests: a pure helper for the away decision in `web/src/lib`, specs for the
+  dialog.
+
+### 33. Calendar day view
+
+The entries list and the weekly grid show totals; there is no view of the day
+as time blocks. Gaps and overlaps are easiest to see on a calendar, and
+dragging a block is the quickest way to fix a forgotten stop.
+
+- A `DayView.vue` with one column per day of the week and entries as blocks
+  positioned by local start and end. Drag to create, drag edges to resize,
+  click to edit in `EntryForm.vue`.
+- Grid entries (`source="grid"`) have no real start time. Show them in a
+  "no time of day" strip, not at 09:00.
+- Writes go through the existing entry routes; locked and invoiced entries are
+  not draggable.
+- Why Maybe: pointer and touch dragging with snapping is a lot of front-end
+  work, and most people fill time from the timer or the grid.
+- Tests: the layout maths (overlapping blocks side by side) as a pure helper
+  in `web/src/lib` with specs.
+
+### 34. Personal API tokens
+
+Everything goes through the web app's bearer token. Scripts (a shell alias to
+start the timer, a stand-up summary, a status bar widget) would need the
+password today.
+
+- Data: `ApiToken` (`user_id`, `name`, `token_hash`, `scopes`, `last_used_at`,
+  `revoked_at`). Shown once at creation, prefixed (`ts_...`) so leaks are easy
+  to grep.
+- Scopes: `read`, `timer`, `entries`. Invoices and settings are not
+  reachable with a token.
+- `deps.py` accepts either a session token (item 21) or an API token, and
+  routes declare the scope they need.
+- `docs/api.md` gets an example with `curl`.
+- Depends on item 21 for the session model.
+- Tests: scopes enforced per route, revoked tokens refused, hash stored only.
+
+### 35. Faster with years of data
+
+The demo has six months of entries and all queries are quick. Several paths
+load every matching row into Python:
+
+- the dashboard loads all unbilled billable entries with their projects to
+  value them (`routers/dashboard.py`), and all sent invoices;
+- `invoices_overview` loads every invoice of the user to count them by
+  display status;
+- `time_report` loads every entry in the range to group them; a year by
+  project is tens of thousands of rows for someone tracking in small pieces;
+- the entries CSV builds the whole file in a `StringIO`.
+
+What to change, if it ever matters:
+
+- Counts and sums in SQL with `GROUP BY` (the overview can compute `overdue`
+  with a `CASE` on `due_date`).
+- Valuing unbilled time needs per-entry rounding, which SQL can do with a
+  ceiling division on the epoch seconds, as long as the rule stays in one
+  place. That is the reason to leave it in Python until it hurts.
+- A streaming CSV response.
+- Tricky: proving it. Build a fixture of 50,000 entries with a bulk insert
+  and assert on the number of rows fetched, not on timing.
+- Why Maybe: one person's time does not grow very fast. Ten years at a
+  hundred entries a month is 12,000 rows.
+
+### 36. Totals across currencies
+
+Every amount is kept per currency (`Amount.list_from` in the reports and
+dashboard), which is correct but means a freelancer with GBP and EUR clients
+never sees one revenue number.
+
+- Data: an `ExchangeRate` table (`currency`, `rate_to_base`, `valid_on`)
+  filled by hand in settings. No rate service; optional import of a CSV from
+  the user's bank or central bank.
+- Reports and the dashboard show a converted total in the account currency
+  (`User.currency`) next to the per-currency amounts, labelled as an estimate,
+  with the rate date used.
+- Invoices never change: they stay in the client's currency.
+- Why Maybe: rates by hand are tedious, and a wrong rate silently produces a
+  wrong total. The per-currency view is honest as it is.
+- Tests: conversion picks the latest rate on or before the date; missing rate
+  shows no total rather than a wrong one.
+
+### 37. Read-only invoice links for clients
+
+Some invoicing tools give the client a link to view the invoice and its time
+details instead of an attachment.
+
+- A random, revocable link per invoice (`InvoiceShare`: `token_hash`,
+  `expires_at`, `revoked_at`) that serves the PDF and an HTML view without
+  signing in. Optionally with the entries (date, hours, description) behind
+  the invoice.
+- Rate limited and never indexed (`X-Robots-Tag: noindex`).
+- Depends on item 2: the shared view must show the stored details.
+- Why Maybe: an unauthenticated route onto financial documents. The value
+  over an emailed PDF (item 18) is small for a single freelancer.
+- Tests: link works until revoked or expired, shows only that invoice.
+
+### 38. Installable app with an offline timer
+
+On a phone the app works in the browser, but starting the timer needs a
+network round trip, and on a train it fails.
+
+- A web manifest and a service worker that caches the built assets.
+- Timer start and stop queued in IndexedDB when offline and sent when the
+  connection returns, using the client's timestamps (the API accepts
+  `ended_at` for stops; starts would need a `started_at` on `/api/timer/start`,
+  checked against now).
+- Why Maybe: offline writes mean conflicts (a timer started on the laptop
+  while the phone was offline), and the one-running-timer index
+  (`uq_time_entries_one_running`) would reject the replay. That needs a
+  merge rule I do not have yet.
+- Tests: the queue and replay logic as a pure module with specs.
