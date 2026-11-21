@@ -24,6 +24,8 @@ invoices.
   (CSV too), and invoiced vs paid revenue per month
 - Dashboard, dark mode, keyboard shortcuts (`?`), works on a phone
 
+Ideas for what could come next are in [ROADMAP.md](ROADMAP.md).
+
 ## Stack
 
 | Part  | Tech                                                                   |
