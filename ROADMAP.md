@@ -238,3 +238,530 @@ The data is a freelancer's income record, and it lives in one Docker volume
 - Tests: none in pytest. A CI step that runs the backup script once against
   the service database and restores it into a second database would prove the
   commands; it fits in the existing `api` job.
+
+## Later
+
+### 6. Overlapping entries
+
+Nothing stops two entries from covering the same minutes. A manual entry typed
+over a stretch the timer already recorded, or a grid cell on a day with timer
+entries at 09:00 (`set_cell` always starts its entry at 09:00 local), bills
+the same hour twice. Toggl and Clockify both flag this; for invoicing it
+matters more than for plain tracking.
+
+- A pure `find_overlaps(entries)` in a new `services/overlaps.py` that returns
+  pairs of entry ids whose ranges intersect, ignoring touching ends.
+- `create_entry` and `update_entry` in `routers/entries.py` look up the
+  user's entries that intersect the new range (one query on
+  `ix_time_entries_user_started`) and answer with the entry plus a
+  `warnings` list. Not a refusal: people do work on two things at once now and
+  then, and the warning is enough.
+- The entries page marks overlapping rows and the timesheet shows a dot on
+  days that have them. The invoice preview counts overlapping minutes so they
+  can be fixed before billing.
+- Grid entries: they have no real start time, so they never count as
+  overlapping. Their time is a total, not a range.
+- Tricky: the running timer overlaps anything that starts after it. Treat its
+  end as now, the way `duration_seconds` does.
+- Tests: unit tests for `find_overlaps`; route tests for the warning on
+  create and update and none for grid entries.
+
+### 7. Editing time lines on a draft invoice
+
+A draft can get extra lines, taxes, notes and dates, but the lines built from
+tracked time are fixed: `remove_extra_line` refuses them ("delete the draft
+instead") and there is no route to change their text or hours. Rewording
+"Booking app" to "Booking app: payment flow", writing off half an hour, or
+merging two per-entry lines means deleting the draft, editing entries and
+generating again.
+
+- `PATCH /api/invoices/{id}/lines/{line_id}` on drafts: `description`, and
+  for time lines a `quantity` override. Extra lines may change everything.
+- Data: `tracked_quantity Numeric(10, 2)` on `InvoiceLine`, filled at
+  generation, so the invoice page can show "billed 7.50 h of 8.20 h tracked"
+  and a reset button.
+- `recalculate` stays the single source of totals.
+- Tricky: the entries stay linked to the invoice whatever the quantity says.
+  A written-off half hour is still "invoiced", which is the honest state (it
+  was dealt with) and keeps it out of the next invoice.
+- Tricky: regenerating. A "Refresh from time" action on a draft would rebuild
+  the time lines and drop the edits. Leave it out; deleting the draft does the
+  same thing visibly.
+- Tests: in `test_invoices.py`, edit text and hours, totals follow, refused on
+  sent invoices, reset restores `tracked_quantity`.
+
+### 8. Partial payments
+
+`change_status(..., "pay")` marks the whole invoice paid at one date, and
+`unpay` clears it. Clients pay in parts, short-pay because of bank fees, or
+pay two invoices with one transfer. The revenue report then shows the full
+total in the month of the last part.
+
+- Data: an `InvoicePayment` table: `invoice_id`, `amount`, `paid_on`, `note`.
+  `Invoice.paid_at` stays as "fully paid at" and is set when the payments
+  reach the total.
+- `POST /api/invoices/{id}/payments` and `DELETE .../payments/{payment_id}`.
+  The existing `pay` action becomes "record a payment of the remaining
+  balance", so the one-click flow stays.
+- `InvoiceDetail` gains `paid_amount` and `balance`. The list and overview
+  show "part paid" as a display status next to `overdue`; like `overdue`, it is
+  derived, never stored.
+- `revenue_report` sums payments by `paid_on` instead of invoice totals by
+  `paid_at`. The client summary's `paid` and `outstanding` follow.
+- Tricky: overpayment. Refuse a payment above the balance; a client credit
+  balance is out of scope.
+- Tricky: the migration creates one payment per paid invoice from `total` and
+  `paid_at`, so old reports do not change.
+- Undecided: a write-off action that closes an invoice with a balance left
+  (bank fees). I lean towards a payment with a note, which needs nothing new.
+- Tests: `test_invoicing.py` for the balance and status rules,
+  `test_reports.py` for revenue by payment month.
+
+### 9. Credit notes instead of reverting
+
+The only way to correct a sent invoice is `revert`, which puts it back to
+draft so it can be edited or deleted. In most countries an issued invoice may
+not be changed or removed; it is cancelled with a credit note that references
+it. Reverting also releases nothing, but deleting the reverted draft releases
+its entries and leaves a gap in the numbers.
+
+- Data: `kind` on `Invoice` (`invoice` or `credit_note`) and
+  `credits_invoice_id`. A credit note has its own number series
+  (`credit_prefix` in settings, default `CN-`) and negative lines.
+- `POST /api/invoices/{id}/credit` on a sent or paid invoice creates a credit
+  note for all of it, sent immediately. The original gets display status
+  `credited`. Its entries are released only if the user ticks "bill this time
+  again", which covers the usual case of re-invoicing with a fix.
+- `revert` is kept only for invoices that were marked sent by mistake and
+  never left the app: allowed within, say, 24 hours of `sent_at`, and only
+  when no PDF was downloaded since (a `downloaded_at` column set by
+  `invoice_pdf`).
+- Reports: credit notes count as negative revenue in the month they are
+  issued.
+- Tricky: partial credit (one line wrong) means editing lines on the credit
+  note, which reuses item 7's line editing if it exists.
+- Tests: the new transitions in `test_invoicing.py`, numbering, released
+  entries, revenue in `test_reports.py`.
+
+### 10. Invoice numbers taken when sent
+
+`generate_invoice` gives a draft its number at once (`next_number` takes
+`max(sequence) + 1`). Deleting a draft that is not the newest leaves a gap, and
+deleting the newest one hands its number to the next draft. Drafts that sit
+for a week can also end up numbered out of date order with invoices sent in
+between. Many tax offices expect gapless numbers in issue order.
+
+- Drafts get no number: `number` and `sequence` become nullable, and the list
+  shows "Draft" in the number column. The unique constraint
+  `uq_invoices_user_number` already ignores nulls.
+- `change_status(..., "send")` takes the next number inside the transaction,
+  with a `SELECT ... FOR UPDATE` on the user's row so two sends cannot race.
+  The `IntegrityError` retry message in `generate_invoice` moves there.
+- `revert` keeps the number, so the series stays without gaps; a reverted
+  invoice is sent again with the same number.
+- The PDF of a draft says "Draft" instead of a number. Sorting by number puts
+  drafts first or last explicitly.
+- Tricky: existing drafts keep their numbers in the migration (taking them
+  away would surprise anyone who already shared one); only new drafts are
+  unnumbered.
+- Undecided: whether to offer both behaviours as a setting. I would not; one
+  rule is easier to explain.
+- Tests: numbering in `test_invoicing.py` with deleted drafts, two parallel
+  sends (two sessions, as the existing double-generate test does), revert and
+  send again.
+
+### 11. Rates that change on a date
+
+The rate is read when the invoice is generated: `_rate` uses
+`project.effective_rate`, and reports and the dashboard value unbilled time the
+same way. Raising a client's rate on 1 January also raises December's
+unbilled hours. The usual answer is "invoice before you change the rate",
+which is easy to forget.
+
+- Data: a `Rate` table: `client_id` or `project_id`, `hourly_rate`,
+  `valid_from` (a date). The current `hourly_rate` columns become "the rate
+  without a date" and a migration turns them into rows from the beginning of
+  time.
+- A pure `rate_on(project, day)` in `services/rates.py`: the project's latest
+  rate on or before the day, else the client's. `_build_lines` groups by
+  project and rate, so a period that spans a change produces two lines
+  ("Booking app, until 31 Dec" and "from 1 Jan").
+- The entry's day is the local day from item 1.
+- Forms: "change rate from date" on the client and project pages, with the
+  history listed.
+- Tricky: `TimeEntry.hourly_rate` and `ProjectOut.effective_rate` are used by
+  the web app for value columns. They become "rate for this entry" and "rate
+  today".
+- Tests: `test_rates.py` for `rate_on`; invoice generation across a change.
+
+### 12. Rounding per client and rounding modes
+
+Rounding is one setting for the whole account (`User.rounding`: none, 6 or 15
+minutes) and always rounds each entry up. Agencies often agree a rule per
+client, and some clients only accept rounding of the daily or invoice total,
+or to the nearest step.
+
+- Data: `rounding` and `rounding_mode` on `Client`, nullable (null follows the
+  account setting). Modes: `entry_up` (today), `entry_nearest`, `total_up`
+  (round each invoice line's sum once).
+- `round_seconds` gains a `mode`; `_build_lines` passes the client's rule. In
+  `group_by == "entry"` the total modes behave like `entry_*`, and the form
+  says so.
+- The preview, dashboard and reports all call `round_seconds` today with
+  `user.rounding`. A helper `rule_for(client, user)` keeps them consistent.
+- Tricky: nearest can round a 2 minute entry to zero. Keep it, with a note in
+  the troubleshooting doc, or set a minimum of one step. I lean towards the
+  minimum.
+- Tests: `test_rounding.py` for the modes, one generation test per mode.
+
+### 13. Tags on entries
+
+Entries have a project and a free-text description. There is no way to say
+"meeting", "bug fix" or "travel" and then report on it. Every comparable tool
+has tags, and they are the most common request on the tracker forums.
+
+- Data: `Tag` (`user_id`, `name`, unique per user) and `entry_tags`. Tags are
+  created by typing a new one.
+- API: `tag_ids` on `EntryIn`, `EntryUpdate` and `TimerStart`; a `tag` filter
+  in `EntryFilters`; bulk add and remove in `/api/entries/bulk`.
+- Web: a tag picker in `EntryForm.vue` and `TimerBar.vue`, tags as chips in the
+  entries list, a tag filter kept in the URL like the others.
+- Reports: group by tag in `time_report`. An entry with two tags counts in
+  both rows, and the total row says the rows overlap.
+- The CSV export gets a `tags` column.
+- `continue_entry` copies the tags.
+- Tests: route tests for create, filter and bulk; report grouping.
+
+### 14. Budgets in money and per month
+
+A project can have `budget_hours`, counted over its whole life, and the
+dashboard warns at 80% (`BUDGET_WARNING_PERCENT`). Retainers ("20 hours a
+month") and fixed budgets ("up to 5,000 EUR") cannot be expressed.
+
+- Data: on `Project`, `budget_kind` (`hours` or `money`), `budget_amount`,
+  `budget_period` (`total` or `month`). `budget_hours` is migrated into it.
+- `with_usage` in `routers/projects.py` computes usage for the current period
+  (the local month from item 1 for monthly budgets) and in money when needed,
+  with the same rounding as invoicing.
+- `BudgetBar.vue` shows hours or money and "this month".
+- Optional: a notice when starting the timer on a project that is over
+  budget.
+- Tricky: money budgets need a rate for every entry; time on a project without
+  a rate is shown as unknown, not zero.
+- Tests: usage calculation in a service test, dashboard warning for a monthly
+  budget that resets.
+
+### 15. Fixed-fee projects and milestones
+
+Every project is billed by the hour. Plenty of freelance work is quoted at a
+fixed price, often in parts ("40% upfront, 60% on delivery"), while the time
+is still tracked to see whether the quote was right.
+
+- Data: `billing` on `Project` (`hourly` or `fixed`) and a `Milestone` table
+  (`project_id`, `name`, `amount`, `invoice_id`, `due_on`).
+- Time on a fixed project is never billed as hours: `unbilled_entries` skips
+  it, and the preview says why.
+- Invoicing: the new-invoice page lists unbilled milestones next to unbilled
+  hours, and generating puts them on as lines with `project_id` set and
+  quantity 1.
+- Project page: quoted amount, invoiced so far, hours tracked and the
+  effective hourly rate.
+- Tricky: switching a project from hourly to fixed with unbilled time. Ask
+  whether that time is billed separately or covered by the fee.
+- Tests: generation with milestones, hourly time skipped, effective rate.
+
+### 16. Expenses with receipts
+
+Expenses go on an invoice only as hand-typed extra lines on a draft
+(`add_extra_line`). There is no record of an expense before the invoice
+exists, no receipt, and nothing reminds anyone to bill it.
+
+- Data: `Expense` (`user_id`, `project_id`, `spent_on`, `description`,
+  `amount`, `currency`, `billable`, `invoice_id`, `receipt_path`).
+- Receipts stored on a volume (`/data/receipts`, a new compose volume), with a
+  size cap and a type check by content (PDF, JPEG, PNG). Served through an
+  owned route like the invoice PDF.
+- Invoice generation picks up unbilled billable expenses of the client in the
+  period as extra lines, linked like entries are, and deleting a draft
+  releases them.
+- Expenses in another currency than the client's are refused for invoicing
+  until converted by hand; see item 36.
+- Tricky: backups. Item 5 has to include the receipts volume, or a restore
+  loses them.
+- Tests: upload limits, ownership of receipt downloads, generation and
+  release.
+
+### 17. Recurring invoices
+
+Fixed monthly fees (hosting, maintenance, retainers) mean typing the same
+draft every month.
+
+- Data: `RecurringInvoice` (`client_id`, lines and taxes as JSON, `interval`
+  monthly or quarterly, `next_issue_on`, `active`).
+- Nothing runs in the background today. Rather than adding a scheduler, the
+  API creates due drafts lazily: the dashboard and invoices list call
+  `materialise_due(user)` first, which creates every draft whose
+  `next_issue_on` has passed, in a transaction, and moves the date on.
+- Drafts only. Sending stays a person's decision.
+- Tricky: catching up. After three months away, create three drafts dated
+  correctly, not one.
+- Tricky: two tabs loading the list at once. Lock the recurring row with
+  `FOR UPDATE` while materialising.
+- Tests: due drafts created once, catch-up, inactive ones skipped.
+
+### 18. Optional email: sending invoices
+
+"Mark as sent" only changes a status; the PDF goes out through the user's own
+mail program. `Client.email` exists but is used for nothing except search.
+
+- Optional SMTP settings in the environment (`SMTP_HOST`, `SMTP_PORT`,
+  `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`). Without them, the feature is
+  hidden and nothing changes. The compose file gets a mailpit service under a
+  `mail` profile for local testing.
+- "Send by email" on a draft: a dialog with recipient (client email), subject
+  and body from a template in settings, the PDF attached. On success it calls
+  the same `change_status(..., "send")`.
+- Data: an `InvoiceEmail` log (`invoice_id`, `to`, `sent_at`, `error`) shown on
+  the invoice page.
+- Sending happens in the request, with a timeout; a failure leaves the invoice
+  a draft and shows the SMTP error.
+- Tricky: reply-to. Mail from the server's address with the user's email as
+  `Reply-To`, so replies reach the person.
+- Tests: an SMTP stub (`aiosmtpd` or a fake transport injected in tests) for
+  the message content and attachment, failure leaves a draft.
+
+### 19. Payment reminders
+
+Overdue invoices are shown as `overdue` and counted on the dashboard, and
+that is all. Chasing payment is the part freelancers dislike most.
+
+- "Send reminder" on an overdue invoice, using item 18's mail with a reminder
+  template and the PDF attached again. Logged in the same `InvoiceEmail`
+  table, so the invoice page shows when the client was last reminded.
+- Optional automatic reminders: N days after the due date, at most M times.
+  Without a scheduler, the same lazy approach as item 17 sends due reminders
+  when the user opens the app. That is a real limit (no reminders while the
+  app is closed), and the settings page has to say so.
+- Tricky: never remind for an invoice that was paid meanwhile; check the
+  status inside the send.
+- Depends on item 18.
+- Tests: due reminders chosen correctly, none for paid invoices, limit
+  respected.
+
+### 20. Password reset
+
+There is no way back into an account after forgetting the password. Signup
+and login exist, and `change_password` needs the current one.
+
+- With item 18's SMTP configured: "Forgot password" sends a link with a
+  random token. Data: `PasswordReset` (`user_id`, `token_hash`, `expires_at`,
+  `used_at`). Tokens are stored hashed, expire after an hour and work once.
+- Without SMTP: a `python -m timesheets.reset_password <email>` command for
+  the person running the server, documented in troubleshooting.
+- The request answers the same whether the email exists or not, and goes
+  through `limit_auth`.
+- Resetting invalidates existing sessions once item 21 exists.
+- Tests: token single use and expiry, same response for unknown emails, rate
+  limit applied.
+
+### 21. Sessions that can be revoked
+
+Access tokens are seven-day JWTs (`TOKEN_TTL_MINUTES` default 10080) with no
+server-side record. Changing the password does not sign anyone out, deleting a
+lost laptop's session is impossible, and signing out only removes the token
+from `localStorage`.
+
+- Data: `Session` (`user_id`, `id`, `created_at`, `last_seen_at`,
+  `user_agent`, `revoked_at`). The JWT carries the session id as `sid`, and
+  `_user_for_token` in `deps.py` checks the row.
+- `change_password` revokes every other session. Settings gets a list of
+  sessions with "sign out" and "sign out everywhere else". Logout revokes the
+  current one on the server.
+- `last_seen_at` is updated at most once a minute per session, so not every
+  request writes.
+- Tricky: this adds a query per request. It is one primary key lookup; worth
+  it.
+- Undecided: moving the token from `localStorage` to an HttpOnly cookie. It
+  protects against token theft through XSS but needs CSRF protection. Vue
+  escapes output and notes are already rendered as text, so I would keep the
+  bearer token and revisit with item 34.
+- Tests: revoked session gets 401, password change revokes others, listing
+  shows only own sessions.
+
+### 22. Short-lived PDF links
+
+The PDF link on the invoice page is `/api/invoices/{id}/pdf?token=...` with
+the full access token (`get_download_user` in `deps.py`). That token is valid
+for a week and grants everything. It ends up in browser history and in
+nginx's access log, which logs the query string (the API's own log line only
+logs the path).
+
+- `POST /api/invoices/{id}/download` returns a link with a signed token that
+  is good for one invoice, one minute and the PDF route only (a JWT with
+  `scope=invoice-pdf` and `invoice_id`). The view requests it on click, then
+  opens the link.
+- `get_download_user` stops accepting access tokens in the query string.
+- Same mechanism for the CSV exports, which today are fetched with the bearer
+  header and turned into a blob; they can stay that way.
+- Tests: scoped token works once for its invoice, refused for another invoice
+  and after expiry, a normal access token in `?token=` is refused.
+
+### 23. Two-factor sign-in
+
+The account holds bank details (`payment_details`), client addresses and the
+income history. A second factor is a reasonable option for people who host
+this on the internet.
+
+- TOTP with `pyotp`: enable in settings with a QR code (rendered in the
+  browser from the `otpauth://` URI, no service), confirm with a code, show ten
+  recovery codes once (stored hashed).
+- Login becomes two steps when enabled: the password step returns a
+  short-lived `mfa_token`, and `POST /api/auth/login/totp` exchanges it plus a
+  code for the access token. Both steps go through `limit_auth`.
+- Disabling needs the password and a code.
+- Tricky: clock drift. Accept one step either side.
+- Tests: enable, login with and without code, recovery code used once,
+  disable.
+
+### 24. Import from other trackers
+
+Moving from Toggl, Clockify or Harvest means starting with an empty history,
+or typing it in. All three export CSV.
+
+- `POST /api/import/entries` with a CSV file and a `format`
+  (`toggl`, `clockify`, `harvest`, or `timesheets`, the app's own export
+  format). A dry run returns what would be created: new clients and projects
+  matched by name, entry count, rows that fail and why.
+- A pure parser per format in `services/importers.py` that yields
+  `(client, project, start, end, description, billable)` and has unit tests
+  with sample files in `api/tests/fixtures`.
+- Imported entries get `source="import"`, and all of them come from one
+  request in one transaction, with a batch id so a bad import can be undone
+  in one action.
+- Tricky: time zones. Toggl exports local times without an offset; the import
+  form asks for the zone and defaults to the account's.
+- Tricky: size. Cap the file (5 MB) and the rows (50,000).
+- Tests: parser units per format, dry run creates nothing, undo removes the
+  batch only.
+
+### 25. Full account export
+
+Deleting the account (`DELETE /api/auth/me`) is one click with a password, and
+there is no way to take the data along first. The entries CSV covers only
+entries.
+
+- `GET /api/account/export` returns a zip with one JSON file per table of the
+  user's data (settings, clients, projects, entries, invoices with lines and
+  taxes) plus every invoice PDF.
+- The delete dialog in `DeleteAccount.vue` offers it first.
+- Import of such a file into an empty account: later, and only if someone
+  needs to move between instances.
+- Tricky: PDFs are rendered on the fly by `render_invoice_pdf`. Rendering a
+  few hundred is a few seconds; fine in one request, with a streaming zip
+  (`zipfile` on a spooled temporary file).
+- Tests: the zip lists the expected files and contains only the user's rows.
+
+### 26. Locked periods
+
+Entries can be changed until they are invoiced. Non-billable time (the
+"Admin" project) is never invoiced, so last year's records can always be
+edited, as can billable time not yet billed. People who report hours to an
+agency or a tax office want to close a month.
+
+- Data: `locked_until` (a date) on `User`.
+- `create_entry`, `update_entry`, `delete_entry`, bulk changes, `set_cell`
+  and the timer's stop time refuse anything that starts on or before the date
+  (in the local zone from item 1). The error says how to unlock.
+- Settings: "Lock time up to" with a date. Unlocking is allowed; it is the
+  user's own data, and the point is to avoid accidents.
+- The timesheet greys out locked days.
+- Tests: each write path refuses locked days, unlocking re-enables them.
+
+### 27. Week start, date and number formats
+
+The week starts on Monday everywhere (`week_start` in `services/timesheet.py`,
+`mondayOf` in `web/src/lib/week.ts`), and the web app formats dates, times and
+money with a fixed `en-GB` locale (`web/src/lib/format.ts`). Someone in the
+US sees "24 Oct 2026" and a Monday week; someone in Germany sees "£1,234.50"
+style separators on EUR amounts.
+
+- Settings: `week_starts_on` (Monday or Sunday) and `locale` (a short list,
+  default from the browser on signup).
+- The grid and the weekly target use the setting on both sides; the API's
+  `build_week` gets the day from the user.
+- `format.ts` reads the locale from the auth store; the Vitest specs already
+  pin a time zone and should pin a locale too.
+- PDF dates and amounts follow the locale (`format_money` in
+  `services/money.py`), which overlaps item 28.
+- Tricky: a week starting on Sunday changes which entries belong to "this
+  week" on the dashboard and in the target. Make that one helper.
+- Tests: `week.spec.ts` for Sunday weeks, `test_timesheet.py` for the API
+  side, format specs per locale.
+
+### 28. Invoice PDF: logo, language and layout
+
+The PDF is one fixed A4 layout in English with Helvetica (`services/pdf.py`).
+Common requests: a logo, US Letter paper, invoices in the client's language,
+and a line for "reverse charge" or similar legal text.
+
+- Data: `logo_path` and `paper_size` on `User`; `language` on `Client`
+  (English, plus whatever translations are added; a small dictionary in
+  `services/pdf_text.py`).
+- Logo upload with a size and type check, stored on a volume like item 16's
+  receipts.
+- The labels ("Invoice", "Bill to", "Due", "Subtotal") come from the
+  dictionary. Amounts use the locale from item 27.
+- Fonts: Helvetica has no glyphs for many scripts. Bundle DejaVu Sans in the
+  image and register it with ReportLab.
+- Depends on item 2: the PDF must render from stored values first.
+- Tests: rendering with each language and paper size does not fail and
+  contains the translated labels.
+
+### 29. Accessibility pass
+
+The app has some ARIA attributes (a few dozen across `web/src`) and keyboard
+shortcuts, but no one has gone through it with a screen reader or keyboard
+only. Likely gaps from reading the code:
+
+- `GridCell.vue` inputs need labels that say the project and the day, not
+  just the value, and errors announced with `aria-live`.
+- `ModalDialog.vue` should trap focus and return it to the opener.
+- `ToastHost.vue` should be a live region.
+- `RevenueChart.vue` needs a text alternative (the numbers as a table).
+- Colour is the only signal for project colours and status badges; add text.
+- Contrast in dark mode (`lib/theme.ts`).
+- Tests: Vitest specs for the labels and focus handling; an axe check would
+  need a browser (item 30).
+
+### 30. Browser end-to-end tests
+
+The web specs mount components with mocked API calls, and the API tests call
+routes directly. Nothing checks that the real build talks to the real API:
+the proxy paths in `nginx.conf`, the PDF download link, the token handling in
+`web/src/api/client.ts` on a 401.
+
+- Playwright in `web/e2e`, against the compose stack with `SEED_DEMO=true`.
+  A handful of flows: sign in as the demo user, start and stop the timer, type
+  into the grid, generate a draft invoice and download its PDF, sign out.
+- A separate CI job after `docker`, since it needs the images. It uses its
+  own `WEB_PORT`.
+- Keep it to these flows; everything else stays in unit and route tests.
+- Tricky: the demo data depends on today's date (six months back from now).
+  Assert on structure, not on numbers.
+- Tests: this item is the tests.
+
+### 31. Metrics and a readiness check
+
+`/api/health` checks the database and the logs have one line per request with
+a duration. For someone running this for a small team of freelancers (or just
+on a home server), basic numbers would help: request rate, errors, slow
+routes, and how long invoice generation and PDF rendering take.
+
+- `/api/metrics` in Prometheus text format, off unless `METRICS_ENABLED=true`
+  and only on the API port (nginx does not proxy it). Request counts and
+  latency histograms by route template, not by raw path, so ids do not explode
+  the label set.
+- Health split: `/api/health` (process up) and `/api/ready` (database and
+  migrations at head, compared with Alembic's current revision).
+- Tests: metrics disabled by default, counters move after a request, ready
+  fails on a pending migration.
